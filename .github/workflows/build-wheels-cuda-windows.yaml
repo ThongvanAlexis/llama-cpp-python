@@ -365,7 +365,12 @@ jobs:
         run: |
           set -euo pipefail
           WORKFLOW='.github/workflows/build-wheels-cuda-windows.yaml'
-          if grep -nH 'allow-unsupported-compiler' "$WORKFLOW"; then
+          # The pattern uses a regex character class `[-]` containing only `-` so that
+          # grep matches real hyphens in target files but NOT its own source line
+          # (which literally contains `[-]`). This avoids the self-match bug where
+          # the ban-grep would otherwise flag itself and fail every dispatch.
+          # Invariant: zero matches on the workflow file.
+          if grep -nHE 'allow[-]unsupported[-]compiler' "$WORKFLOW"; then
             echo "::error file=$WORKFLOW::the banned CMake flag is present (upstream #1543)"
             exit 1
           fi
