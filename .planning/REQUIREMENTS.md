@@ -7,15 +7,15 @@
 
 ### Workflow Scaffolding
 
-- [ ] **WF-01**: New workflow file `.github/workflows/build-wheels-cuda-windows.yaml` exists, separate from upstream's `build-wheels-cuda.yaml` (avoid merge conflicts on upstream pulls)
-- [ ] **WF-02**: Workflow is triggered only by `workflow_dispatch` (no push/tag/release auto-triggers in v1)
-- [ ] **WF-03**: Workflow exposes `python_version` input (default `3.11`) selectable at dispatch time
-- [ ] **WF-04**: Workflow exposes `cuda_version` input (default `12.4.1`) selectable at dispatch time
+- [x] **WF-01**: New workflow file `.github/workflows/build-wheels-cuda-windows.yaml` exists, separate from upstream's `build-wheels-cuda.yaml` (avoid merge conflicts on upstream pulls)
+- [x] **WF-02**: Workflow is triggered only by `workflow_dispatch` (no push/tag/release auto-triggers in v1)
+- [x] **WF-03**: Workflow exposes `python_version` input (default `3.11`) selectable at dispatch time
+- [x] **WF-04**: Workflow exposes `cuda_version` input (default `12.4.1`) selectable at dispatch time
 - [ ] **WF-05**: Workflow checks out the repo with `submodules: recursive` so `vendor/llama.cpp/` is populated
 
 ### Toolchain Pinning (Load-Bearing)
 
-- [ ] **TC-01**: Runner is pinned to `windows-2022` explicitly (never `windows-latest`)
+- [x] **TC-01**: Runner is pinned to `windows-2022` explicitly (never `windows-latest`)
 - [ ] **TC-02**: MSVC toolset 14.39 (VS 17.9, `_MSC_VER = 1939`) is side-by-side installed via `vs_installer.exe modify --add Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64`
 - [ ] **TC-03**: MSVC 14.39 toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: 14.39`
 - [ ] **TC-04**: Preflight step asserts `cl.exe /Bv` reports `_MSC_VER` ≤ `1939`; build fails loudly if assertion fails
@@ -24,7 +24,7 @@
 - [ ] **TC-07**: `CUDA_PATH` and `CUDA_PATH_V*_*` env variables are explicitly unset or normalized before build (prevent double-install confusion)
 - [ ] **TC-08**: Visual Studio BuildCustomizations path is detected dynamically (no hardcoded `2019\Enterprise` path from upstream)
 - [ ] **TC-09**: Windows `LongPathsEnabled=1` registry key is set before checkout
-- [ ] **TC-10**: CMake flag `-DCMAKE_CUDA_FLAGS=--allow-unsupported-compiler` is **not** used anywhere; CI fails if the workflow contains that literal (grep-assert)
+- [x] **TC-10**: CMake flag `-DCMAKE_CUDA_FLAGS=--allow-unsupported-compiler` is **not** used anywhere; CI fails if the workflow contains that literal (grep-assert)
 
 ### Build + Caching
 
@@ -124,12 +124,12 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WF-01 | Phase 1 | Pending |
-| WF-02 | Phase 1 | Pending |
-| WF-03 | Phase 1 | Pending |
-| WF-04 | Phase 1 | Pending |
+| WF-01 | Phase 1 | Complete |
+| WF-02 | Phase 1 | Complete |
+| WF-03 | Phase 1 | Complete |
+| WF-04 | Phase 1 | Complete |
 | WF-05 | Phase 1 | Pending |
-| TC-01 | Phase 1 | Pending |
+| TC-01 | Phase 1 | Complete |
 | TC-02 | Phase 1 | Pending |
 | TC-03 | Phase 1 | Pending |
 | TC-04 | Phase 1 | Pending |
@@ -138,7 +138,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | TC-07 | Phase 1 | Pending |
 | TC-08 | Phase 1 | Pending |
 | TC-09 | Phase 1 | Pending |
-| TC-10 | Phase 1 | Pending |
+| TC-10 | Phase 1 | Complete |
 | BLD-01 | Phase 2 | Pending |
 | BLD-02 | Phase 2 | Pending |
 | BLD-03 | Phase 2 | Pending |

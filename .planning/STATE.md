@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-04-15T20:08:00.592Z"
-last_activity: 2026-04-15 — Roadmap created (4 phases, 51/51 v1 requirements mapped)
+status: executing
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-04-15T20:59:41.649Z"
+last_activity: 2026-04-15 — Plan 01 executed (Wave 0 substrate `.github/workflows/build-wheels-cuda-windows.yaml` created; commit dfe478b)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Produce a Windows x64 CUDA wheel that actually works at runtime (loads a model, runs inference without segfault) and is installable via `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu124`.
-**Current focus:** Phase 1 — Scaffold & Toolchain Pinning (not yet planned)
+**Current focus:** Phase 1 — Scaffold & Toolchain Pinning (Plan 01 complete; Plan 02 next)
 
 ## Current Position
 
 Phase: 1 of 4 (Scaffold & Toolchain Pinning)
-Plan: — of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-04-15 — Roadmap created (4 phases, 51/51 v1 requirements mapped)
+Plan: 2 of 3 in current phase (Plan 01 complete — workflow scaffold + lint job operational)
+Status: In progress
+Last activity: 2026-04-15 — Plan 01 executed (Wave 0 substrate `.github/workflows/build-wheels-cuda-windows.yaml` created; commit dfe478b)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: — (no plans executed yet)
 
 *Updated after each plan completion*
+| Phase 01-scaffold-toolchain-pinning P01 | 2 min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,9 @@ Recent decisions affecting current work (from PROJECT.md + research):
 - [Phase 2]: save caches on failure (`if: always()`) — most dev iterations will be failing builds
 - [Phase 3]: Smoke test is a hard publish gate (`needs: [build, smoke-test]`), not an advisory step
 - [Phase 4]: Publish via `peaceiris/actions-gh-pages@v4` with `keep_files: true` + `concurrency: group: gh-pages-publish, cancel-in-progress: false`
+- [Phase 01-scaffold-toolchain-pinning]: actionlint installed via official curl one-liner (not a wrapping action) — locked for Plan 03
+- [Phase 01-scaffold-toolchain-pinning]: Ban-grep diagnostic messages use paraphrases ('banned CMake flag', 'compiler-bypass workaround flag') — preserves count-equals-1 invariant for VALIDATION quick command; same policy applies to Plan 03 Task 2 DOC-04 inline comments
+- [Phase 01-scaffold-toolchain-pinning]: Strict bash prelude 'set -euo pipefail' adopted as Plan 02/03 reusable idiom for all shell:bash blocks
 
 ### Pending Todos
 
@@ -83,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-15T20:08:00.589Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-scaffold-toolchain-pinning/01-CONTEXT.md
+Last session: 2026-04-15T20:59:30.799Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
