@@ -20,13 +20,13 @@ on:
       cuda_version:
         description: 'CUDA toolkit version (must match nvcc major.minor on runner)'
         type: choice
-        default: '12.4.1'
+        default: '12.6.3'
         options:
-          - '12.4.1'
+          - '12.6.3'
       msvc_toolset:
-        description: 'MSVC toolset MAJOR.MINOR (14.39 = VS 17.9, _MSC_VER 1939; raise only to work around runner image rotation — see upstream #1543)'
+        description: 'MSVC toolset MAJOR.MINOR (14.40 = VS 17.10, _MSC_VER 1940; raise only to work around runner image rotation — see upstream #1543; OQ1 resolution 2026-04-15: 14.39/VC.14.39.17.9 component no longer offered on windows-2022, bumped to 14.40 + CUDA 12.6.3)'
         type: string
-        default: '14.39'
+        default: '14.40'
       verbose:
         description: 'Enable verbose preflight tracing (sets $env:VERBOSE=1)'
         type: boolean
@@ -80,6 +80,7 @@ jobs:
           cache: 'pip'
 
       - name: Probe and install MSVC ${{ inputs.msvc_toolset }} toolset
+        id: probe-install-msvc
         shell: pwsh
         timeout-minutes: 15
         run: |
@@ -87,12 +88,28 @@ jobs:
           $ErrorActionPreference = 'Stop'
 
           $toolset = '${{ inputs.msvc_toolset }}'
-          # Component ID format: Microsoft.VisualStudio.Component.VC.<major>.<minor>.17.9.x86.x64
-          # For 14.39 → "Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64"
-          # NOTE: the 17.9 suffix is the VS version that originally shipped this toolset;
-          # 14.40 uses 17.10, 14.41 uses 17.11, etc. If msvc_toolset bumps past 14.39,
-          # this suffix needs updating (Phase 1 locks 14.39 as default; MX-02/v2 revisits).
-          $componentId = "Microsoft.VisualStudio.Component.VC.$toolset.17.9.x86.x64"
+          # Component ID format: Microsoft.VisualStudio.Component.VC.<major>.<minor>.<vs>.x86.x64
+          # The <vs> suffix is the VS 17.x version that originally shipped the toolset.
+          # Mapping (hard-locked; updating requires verifying the component ID exists on
+          # Microsoft's channel manifest AND that the matching CUDA nvcc cap allows it):
+          #   14.39 → 17.9     (retired from windows-2022 per actions/runner-images#9701)
+          #   14.40 → 17.10    (Phase 1 current default; CUDA 12.5+ required)
+          #   14.41 → 17.11
+          #   14.42 → 17.12
+          # Throw-on-unknown is intentional: a silent fallback would re-introduce the
+          # upstream #1543 failure mode where a wrong toolset compiles but segfaults.
+          $toolsetToVs = @{
+            '14.39' = '17.9'
+            '14.40' = '17.10'
+            '14.41' = '17.11'
+            '14.42' = '17.12'
+          }
+          if (-not $toolsetToVs.ContainsKey($toolset)) {
+            throw "Unknown msvc_toolset '$toolset'. Supported: $($toolsetToVs.Keys -join ', '). Update the toolsetToVs table in build-wheels-cuda-windows.yaml to add a new toolset."
+          }
+          $vsSuffix = $toolsetToVs[$toolset]
+          # For 14.40 → "Microsoft.VisualStudio.Component.VC.14.40.17.10.x86.x64"
+          $componentId = "Microsoft.VisualStudio.Component.VC.$toolset.$vsSuffix.x86.x64"
 
           $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
           if (-not (Test-Path $vswhere)) {
@@ -113,7 +130,7 @@ jobs:
                    "Component probed: $componentId`n" +
                    "`n" +
                    "REMEDIATION:`n" +
-                   "  - Re-dispatch with msvc_toolset=14.40 (works with CUDA 12.5+)`n" +
+                   "  - Re-dispatch with the next-supported toolset (e.g. msvc_toolset=14.41 if 14.40 is retired); update cuda_version accordingly so CUDA nvcc's _MSC_VER cap covers the new toolset`n" +
                    "  - See actions/runner-images#9701 for VC component removal history`n" +
                    "  - See upstream abetlen/llama-cpp-python#1543 for _MSC_VER/nvcc compatibility"
             Write-Error $msg
@@ -142,11 +159,26 @@ jobs:
           }
           Write-Host "MSVC $toolset component installed at: $confirmPath"
 
+          # Emit the derived vs-version semver range for the ilammy/msvc-dev-cmd step.
+          # Pattern: '[17.X,17.(X+1))' — lower bound inclusive, upper exclusive.
+          # Example: 14.40 → vsSuffix 17.10 → '[17.10,17.11)'
+          $vsParts = $vsSuffix -split '\.'
+          if ($vsParts.Count -ne 2) { throw "Derived vsSuffix '$vsSuffix' is not MAJOR.MINOR" }
+          $vsMajor = [int]$vsParts[0]; $vsMinor = [int]$vsParts[1]
+          $vsRange = "[$vsMajor.$vsMinor,$vsMajor.$($vsMinor + 1))"
+          Write-Host "Derived vs-version range for toolset $toolset -> $vsRange"
+          "vs_version_range=$vsRange" >> $env:GITHUB_OUTPUT
+          "component_id=$componentId" >> $env:GITHUB_OUTPUT
+
       - name: Activate MSVC ${{ inputs.msvc_toolset }} toolset
         uses: ilammy/msvc-dev-cmd@v1
         with:
           toolset: ${{ inputs.msvc_toolset }}
-          vs-version: '[17.9,17.10)'
+          # vs-version range is derived from msvc_toolset via the lookup table in the
+          # probe-install step (14.40 → '[17.10,17.11)'). Keeping this dynamic avoids
+          # the drift trap where bumping msvc_toolset but forgetting to widen the range
+          # would let an out-of-range VS edition activate (upstream #1543 root cause).
+          vs-version: ${{ steps.probe-install-msvc.outputs.vs_version_range }}
           arch: x64
 
       - name: Setup mamba
