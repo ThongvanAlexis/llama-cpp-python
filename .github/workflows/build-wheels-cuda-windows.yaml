@@ -47,9 +47,131 @@ jobs:
       run:
         shell: pwsh
     steps:
-      # PLACEHOLDER — delete when Plan 02 populates preflight body.
-      - name: Preflight stub
-        run: Write-Host "preflight stub — Plan 02 adds body"
+      - name: Enable Windows long paths
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          # TC-09: avoids MSVC "fatal error C1083: cannot open compiler generated file"
+          # when build/{wheel tag}/vendor/llama.cpp/ggml-cuda paths exceed 260 chars.
+          # MUST run BEFORE actions/checkout@v4 — checkout will silently truncate
+          # long submodule paths on some warm-start runner scenarios otherwise.
+          New-ItemProperty `
+            -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+            -Name 'LongPathsEnabled' `
+            -Value 1 `
+            -PropertyType DWORD `
+            -Force | Out-Null
+          git config --system core.longpaths true
+          $enabled = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem').LongPathsEnabled
+          if ($enabled -ne 1) { throw "LongPathsEnabled failed to persist (got $enabled)" }
+          Write-Host "LongPathsEnabled: $enabled"
+
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive   # WF-05 — pulls vendor/llama.cpp and its own submodules (ggml)
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          cache: 'pip'
+
+      - name: Probe and install MSVC ${{ inputs.msvc_toolset }} toolset
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $toolset = '${{ inputs.msvc_toolset }}'
+          # Component ID format: Microsoft.VisualStudio.Component.VC.<major>.<minor>.17.9.x86.x64
+          # For 14.39 → "Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64"
+          # NOTE: the 17.9 suffix is the VS version that originally shipped this toolset;
+          # 14.40 uses 17.10, 14.41 uses 17.11, etc. If msvc_toolset bumps past 14.39,
+          # this suffix needs updating (Phase 1 locks 14.39 as default; MX-02/v2 revisits).
+          $componentId = "Microsoft.VisualStudio.Component.VC.$toolset.17.9.x86.x64"
+
+          $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path $vswhere)) {
+            throw "vswhere.exe not found at $vswhere — windows-2022 image layout has changed"
+          }
+
+          # Probe: is ANY VS 2022 install present?
+          $installPath = & $vswhere -latest -property installationPath
+          if (-not $installPath) {
+            throw "No VS 2022 installation found on windows-2022 runner (vswhere returned empty)"
+          }
+          Write-Host "VS 2022 detected at: $installPath"
+
+          # Probe: is the requested toolset component offerable on this image?
+          $hasComponent = & $vswhere -products * -requires $componentId -property installationPath
+          if (-not $hasComponent) {
+            $msg = "MSVC toolset $toolset component is NOT available on this windows-2022 image.`n" +
+                   "Component probed: $componentId`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - Re-dispatch with msvc_toolset=14.40 (works with CUDA 12.5+)`n" +
+                   "  - See actions/runner-images#9701 for VC component removal history`n" +
+                   "  - See upstream abetlen/llama-cpp-python#1543 for _MSC_VER/nvcc compatibility"
+            Write-Error $msg
+            exit 1
+          }
+
+          # Install: modify VS to add the requested toolset component
+          $installer = Join-Path $installPath '..\..\..\..\Installer\setup.exe' | Resolve-Path
+          Write-Host "Starting vs_installer.exe modify to add $componentId ..."
+          $proc = Start-Process -Wait -PassThru -FilePath $installer -ArgumentList @(
+            'modify',
+            '--installPath', "`"$installPath`"",
+            '--add', $componentId,
+            '--quiet',
+            '--norestart'
+          )
+          # 3010 = success-with-reboot-required, acceptable on CI
+          if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+            throw "vs_installer.exe modify failed with exit code $($proc.ExitCode)"
+          }
+
+          # Re-probe: confirm component is now installed on disk
+          $confirmPath = & $vswhere -products * -requires $componentId -property installationPath
+          if (-not $confirmPath) {
+            throw "Post-install probe failed: $componentId still not present. Installer may have silently failed."
+          }
+          Write-Host "MSVC $toolset component installed at: $confirmPath"
+
+      - name: Activate MSVC ${{ inputs.msvc_toolset }} toolset
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          toolset: ${{ inputs.msvc_toolset }}
+          vs-version: '[17.9,17.10)'
+          arch: x64
+
+      - name: Setup mamba
+        uses: conda-incubator/setup-miniconda@v3.1.0
+        with:
+          activate-environment: llamacpp
+          python-version: ${{ inputs.python_version }}
+          miniforge-version: latest
+          add-pip-as-python-dependency: true
+          auto-activate-base: false
+
+      - name: Install CUDA toolkit via mamba
+        shell: bash -el {0}
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          CUDA_VERSION='${{ inputs.cuda_version }}'
+          CUDA_CHANNEL="nvidia/label/cuda-${CUDA_VERSION}"
+          # TC-05: single install path. No Jimver full-installer.
+          # --channel-priority strict prevents conda-forge from pulling a mismatched cudart.
+          mamba install -y \
+            --channel-priority strict \
+            --override-channels \
+            -c "${CUDA_CHANNEL}" \
+            "${CUDA_CHANNEL}::cuda-toolkit=${CUDA_VERSION}"
 
   lint-workflow:
     runs-on: ubuntu-latest
