@@ -124,63 +124,69 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WF-01 | Phase [N] | Pending |
-| WF-02 | Phase [N] | Pending |
-| WF-03 | Phase [N] | Pending |
-| WF-04 | Phase [N] | Pending |
-| WF-05 | Phase [N] | Pending |
-| TC-01 | Phase [N] | Pending |
-| TC-02 | Phase [N] | Pending |
-| TC-03 | Phase [N] | Pending |
-| TC-04 | Phase [N] | Pending |
-| TC-05 | Phase [N] | Pending |
-| TC-06 | Phase [N] | Pending |
-| TC-07 | Phase [N] | Pending |
-| TC-08 | Phase [N] | Pending |
-| TC-09 | Phase [N] | Pending |
-| TC-10 | Phase [N] | Pending |
-| BLD-01 | Phase [N] | Pending |
-| BLD-02 | Phase [N] | Pending |
-| BLD-03 | Phase [N] | Pending |
-| BLD-04 | Phase [N] | Pending |
-| BLD-05 | Phase [N] | Pending |
-| BLD-06 | Phase [N] | Pending |
-| BLD-07 | Phase [N] | Pending |
-| BLD-08 | Phase [N] | Pending |
-| BLD-09 | Phase [N] | Pending |
-| BLD-10 | Phase [N] | Pending |
-| BLD-11 | Phase [N] | Pending |
-| BLD-12 | Phase [N] | Pending |
-| BLD-13 | Phase [N] | Pending |
-| ST-01 | Phase [N] | Pending |
-| ST-02 | Phase [N] | Pending |
-| ST-03 | Phase [N] | Pending |
-| ST-04 | Phase [N] | Pending |
-| ST-05 | Phase [N] | Pending |
-| ST-06 | Phase [N] | Pending |
-| ST-07 | Phase [N] | Pending |
-| ST-08 | Phase [N] | Pending |
-| PUB-01 | Phase [N] | Pending |
-| PUB-02 | Phase [N] | Pending |
-| PUB-03 | Phase [N] | Pending |
-| PUB-04 | Phase [N] | Pending |
-| PUB-05 | Phase [N] | Pending |
-| PUB-06 | Phase [N] | Pending |
-| PUB-07 | Phase [N] | Pending |
-| PUB-08 | Phase [N] | Pending |
-| PUB-09 | Phase [N] | Pending |
-| PUB-10 | Phase [N] | Pending |
-| DOC-01 | Phase [N] | Pending |
-| DOC-02 | Phase [N] | Pending |
-| DOC-03 | Phase [N] | Pending |
-| DOC-04 | Phase [N] | Pending |
-| DOC-05 | Phase [N] | Pending |
+| WF-01 | Phase 1 | Pending |
+| WF-02 | Phase 1 | Pending |
+| WF-03 | Phase 1 | Pending |
+| WF-04 | Phase 1 | Pending |
+| WF-05 | Phase 1 | Pending |
+| TC-01 | Phase 1 | Pending |
+| TC-02 | Phase 1 | Pending |
+| TC-03 | Phase 1 | Pending |
+| TC-04 | Phase 1 | Pending |
+| TC-05 | Phase 1 | Pending |
+| TC-06 | Phase 1 | Pending |
+| TC-07 | Phase 1 | Pending |
+| TC-08 | Phase 1 | Pending |
+| TC-09 | Phase 1 | Pending |
+| TC-10 | Phase 1 | Pending |
+| BLD-01 | Phase 2 | Pending |
+| BLD-02 | Phase 2 | Pending |
+| BLD-03 | Phase 2 | Pending |
+| BLD-04 | Phase 2 | Pending |
+| BLD-05 | Phase 2 | Pending |
+| BLD-06 | Phase 2 | Pending |
+| BLD-07 | Phase 2 | Pending |
+| BLD-08 | Phase 2 | Pending |
+| BLD-09 | Phase 2 | Pending |
+| BLD-10 | Phase 2 | Pending |
+| BLD-11 | Phase 2 | Pending |
+| BLD-12 | Phase 2 | Pending |
+| BLD-13 | Phase 2 | Pending |
+| ST-01 | Phase 3 | Pending |
+| ST-02 | Phase 3 | Pending |
+| ST-03 | Phase 3 | Pending |
+| ST-04 | Phase 3 | Pending |
+| ST-05 | Phase 3 | Pending |
+| ST-06 | Phase 3 | Pending |
+| ST-07 | Phase 3 | Pending |
+| ST-08 | Phase 3 | Pending |
+| PUB-01 | Phase 4 | Pending |
+| PUB-02 | Phase 4 | Pending |
+| PUB-03 | Phase 4 | Pending |
+| PUB-04 | Phase 4 | Pending |
+| PUB-05 | Phase 4 | Pending |
+| PUB-06 | Phase 4 | Pending |
+| PUB-07 | Phase 4 | Pending |
+| PUB-08 | Phase 4 | Pending |
+| PUB-09 | Phase 4 | Pending |
+| PUB-10 | Phase 4 | Pending |
+| DOC-01 | Phase 4 | Pending |
+| DOC-02 | Phase 4 | Pending |
+| DOC-03 | Phase 4 | Pending |
+| DOC-04 | Phase 1 | Pending |
+| DOC-05 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 51 total
-- Mapped to phases: 0 (populated by roadmapper)
-- Unmapped: 51 ⚠️ (will be 0 after roadmap)
+- Mapped to phases: 51 ✓
+- Unmapped: 0
+
+**Phase distribution:**
+- Phase 1 (Scaffold & Toolchain Pinning): 16 requirements (WF-01..05, TC-01..10, DOC-04)
+- Phase 2 (Build & Cache): 13 requirements (BLD-01..13)
+- Phase 3 (Smoke Test): 8 requirements (ST-01..08)
+- Phase 4 (Publish & Consumer UX): 14 requirements (PUB-01..10, DOC-01, DOC-02, DOC-03, DOC-05)
 
 ---
 *Requirements defined: 2026-04-15*
-*Last updated: 2026-04-15 after initial definition*
+*Last updated: 2026-04-15 — traceability populated after roadmap creation*
