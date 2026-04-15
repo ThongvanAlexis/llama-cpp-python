@@ -173,6 +173,186 @@ jobs:
             -c "${CUDA_CHANNEL}" \
             "${CUDA_CHANNEL}::cuda-toolkit=${CUDA_VERSION}"
 
+      - name: 'Preflight: Assert MSVC _MSC_VER <= cap'
+        id: assert-msvc
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # TC-04: cap is COMPUTED from ${{ inputs.msvc_toolset }} — never hardcoded.
+          $toolset = '${{ inputs.msvc_toolset }}'
+          $parts = $toolset -split '\.'
+          if ($parts.Count -ne 2) { throw "msvc_toolset must be 'MAJOR.MINOR'; got '$toolset'" }
+          $major = [int]$parts[0]; $minor = [int]$parts[1]
+          if ($major -ne 14) { throw "msvc_toolset major must be 14 for v1 (got '$major')" }
+          $cap = 1900 + $minor   # 14.39 -> 1939; 14.40 -> 1940
+
+          # cl.exe writes banner to stderr; redirect 2>&1.
+          $banner = (cl.exe 2>&1 | Out-String)
+          $match = [regex]::Match($banner, 'Version (\d+)\.(\d+)')
+          if (-not $match.Success) { throw "Failed to parse cl.exe banner: $banner" }
+          $clMajor = [int]$match.Groups[1].Value
+          $clMinor = [int]$match.Groups[2].Value
+          # cl.exe reports '19.39'; _MSC_VER is clMajor*100 + clMinor (e.g. 19.39 -> 1939).
+          $mscVer = $clMajor * 100 + $clMinor
+
+          if ($mscVer -gt $cap) {
+            $msg = "MSVC _MSC_VER=$mscVer exceeds cap=$cap (derived from msvc_toolset=$toolset).`n" +
+                   "`n" +
+                   "This means ilammy/msvc-dev-cmd did NOT downgrade the active toolset correctly,`n" +
+                   "OR the vs_installer.exe modify silently failed to install the requested component.`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  1. Check the 'Probe and install MSVC' step log for silent failures`n" +
+                   "  2. Re-run with msvc_toolset=14.40 if 14.39 has been retired from the image`n" +
+                   "  3. Verify the active toolset: cl.exe /Bv in a debug step`n" +
+                   "  4. See upstream abetlen/llama-cpp-python#1543 for why _MSC_VER > cap produces segfaulting wheels"
+            Write-Error $msg
+            exit 1
+          }
+          Write-Host "OK: _MSC_VER=$mscVer <= cap=$cap"
+          "msc_ver=$mscVer" >> $env:GITHUB_OUTPUT
+
+      - name: 'Preflight: Assert nvcc matches cuda_version'
+        id: assert-nvcc
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # TC-06: compare nvcc's reported release to the major.minor of the dispatch input.
+          $requestedFull = '${{ inputs.cuda_version }}'   # e.g. '12.4.1'
+          $requestedMajorMinor = ($requestedFull -split '\.')[0..1] -join '.'   # '12.4'
+
+          $nvccOut = (nvcc --version) -join "`n"
+          $match = [regex]::Match($nvccOut, 'release (\d+\.\d+)')
+          if (-not $match.Success) { throw "Failed to parse 'nvcc --version':`n$nvccOut" }
+          $nvccMajorMinor = $match.Groups[1].Value   # '12.4'
+
+          if ($nvccMajorMinor -ne $requestedMajorMinor) {
+            $msg = "nvcc reports '$nvccMajorMinor' but dispatch input cuda_version='$requestedFull' (major.minor=$requestedMajorMinor).`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - The mamba install step failed or was skipped`n" +
+                   "  - A stale CUDA is winning PATH order (see Assertion 3)`n" +
+                   "  - The cuda_version input is malformed"
+            throw $msg
+          }
+          Write-Host "OK: nvcc reports $nvccMajorMinor matches requested $requestedMajorMinor"
+          "nvcc_version=$nvccMajorMinor" >> $env:GITHUB_OUTPUT
+
+      - name: 'Preflight: Assert single CUDA install path'
+        id: assert-cuda-single-path
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # TC-07: sweep ghost env vars from prior installs (CUDA_PATH_V12_4, etc.)
+          $ghosts = Get-ChildItem env: | Where-Object { $_.Name -match '^CUDA_PATH_V\d+_\d+$' }
+          if ($ghosts.Count -gt 0) {
+            foreach ($g in $ghosts) {
+              Write-Warning "Removing ghost env var: $($g.Name)=$($g.Value)"
+              Remove-Item "env:$($g.Name)"
+            }
+          }
+
+          # Single nvcc on PATH
+          $nvccPaths = @((where.exe nvcc 2>$null) -split "`n" | Where-Object { $_ -ne '' })
+          if ($nvccPaths.Count -ne 1) {
+            $msg = "Expected exactly one nvcc on PATH; found $($nvccPaths.Count):`n" +
+                   ($nvccPaths -join "`n") + "`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - Ensure mamba env is activated (conda activate llamacpp)`n" +
+                   "  - Remove any Jimver-extracted CUDA from prior job state"
+            throw $msg
+          }
+
+          # Ensure the one nvcc lives in CONDA_PREFIX
+          if (-not $nvccPaths[0].StartsWith($env:CONDA_PREFIX)) {
+            throw "nvcc at $($nvccPaths[0]) is not under CONDA_PREFIX=$env:CONDA_PREFIX"
+          }
+          Write-Host "OK: single nvcc at $($nvccPaths[0])"
+
+      - name: 'Preflight: Assert llama.cpp submodule populated'
+        id: assert-submodule
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # WF-05 double-check (catches silent submodules: recursive failures per RESEARCH.md Pitfall 2)
+          if (-not (Test-Path 'vendor/llama.cpp/CMakeLists.txt')) {
+            $msg = "vendor/llama.cpp/CMakeLists.txt is missing after 'submodules: recursive' checkout.`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - Re-dispatch the workflow (most likely a transient network failure)`n" +
+                   "  - If persistent: check .gitmodules and actions/checkout@v4 logs for warnings`n" +
+                   "  - Verify the submodule isn't path-excluded by .git/info/sparse-checkout"
+            throw $msg
+          }
+          $llamaSha = (git -C vendor/llama.cpp rev-parse --short HEAD).Trim()
+          Write-Host "OK: llama.cpp submodule at $llamaSha"
+          "llama_sha=$llamaSha" >> $env:GITHUB_OUTPUT
+
+      - name: 'Preflight: Assert Python version'
+        id: assert-python
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $requested = '${{ inputs.python_version }}'   # e.g. '3.11'
+          $actualRaw = (python --version 2>&1) -as [string]
+          $match = [regex]::Match($actualRaw, 'Python (\d+\.\d+)')
+          if (-not $match.Success) { throw "Failed to parse: $actualRaw" }
+          $actual = $match.Groups[1].Value
+
+          if ($actual -ne $requested) {
+            $msg = "Python version mismatch: requested=$requested, actual=$actual`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - 'where.exe python' may return multiple paths; mamba's Python must win`n" +
+                   "  - setup-python cache may have served a stale interpreter`n" +
+                   "  - Check that setup-miniconda activate-environment.python-version matches inputs.python_version"
+            throw $msg
+          }
+          $pyPath = (where.exe python | Select-Object -First 1).Trim()
+          Write-Host "OK: Python $actual at $pyPath"
+          "python_version=$actual" >> $env:GITHUB_OUTPUT
+          "python_path=$pyPath" >> $env:GITHUB_OUTPUT
+
+      - name: 'Preflight: Discover VS 2022 BuildCustomizations path'
+        id: discover-vs
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # TC-08: dynamic discovery, no hardcoded edition/version (no 2019\Enterprise anywhere).
+          $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsRoot = & $vswhere -latest -property installationPath
+          if (-not $vsRoot) { throw "No VS 2022 installation found (vswhere returned empty)" }
+
+          $bcPattern = Join-Path $vsRoot 'MSBuild\Microsoft\VC\*\BuildCustomizations'
+          $bcPaths = @(Get-ChildItem -Path $bcPattern -ErrorAction SilentlyContinue)
+          if (-not $bcPaths -or $bcPaths.Count -eq 0) {
+            $msg = "No VS 2022 BuildCustomizations path found under: $bcPattern`n" +
+                   "`n" +
+                   "This usually means the runner image has rotated VS editions or the VC++ workload is not installed.`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - Verify windows-2022 runner image still ships VS 2022 Enterprise/Community/BuildTools`n" +
+                   "  - Check actions/runner-images Windows2022-Readme.md for layout changes"
+            throw $msg
+          }
+          $bcPath = $bcPaths[0].FullName
+          Write-Host "OK: VS BuildCustomizations at $bcPath"
+          "vs_install_path=$vsRoot" >> $env:GITHUB_OUTPUT
+          "bc_path=$bcPath" >> $env:GITHUB_OUTPUT
+
   lint-workflow:
     runs-on: ubuntu-latest
     timeout-minutes: 5
