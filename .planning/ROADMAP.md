@@ -27,10 +27,12 @@ This v1 delivers a GitHub Actions workflow that produces a runtime-verified Wind
   3. Grepping the workflow file for the literal string `allow-unsupported-compiler` returns zero matches, and a CI self-check step enforces this.
   4. Only one CUDA install path is active in the job (mamba `cuda-toolkit`); `where nvcc` returns exactly one path and no stray `CUDA_PATH_V*_*` env variables survive into the build step.
   5. The VS BuildCustomizations directory is discovered dynamically and the workflow fails loudly (strict-mode) if no VS 2022 install is found, rather than silently no-op'ing.
-**Plans**: TBD (1-3 plans; likely 1 plan given tight coupling of scaffold + toolchain)
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: TBD — scaffold new workflow file, wire dispatch inputs, install & activate MSVC 14.39, unify CUDA install, add preflight + ban-grep assertions
+- [ ] 01-01-PLAN.md — Create workflow skeleton + operational lint-workflow job (WF-01, WF-02, WF-03, WF-04, TC-01, TC-10)
+- [ ] 01-02-PLAN.md — Populate preflight body: toolchain install + 5 named assertions + VS discovery (WF-05, TC-02..TC-09) [human-verify checkpoint]
+- [ ] 01-03-PLAN.md — Forensics summary (green/red paths) + DOC-04 inline comments (DOC-04) [human-verify checkpoint]
 
 ### Phase 2: Build & Cache
 **Goal**: The build step, invoked after Phase 1's green toolchain, produces a correctly-tagged `cp311-cp311-win_amd64.whl` under 400 MB with a reproducible version string (embeds llama.cpp submodule SHA), while three caches (sccache, CUDA installer zip, mamba pkgs) are keyed to invalidate on source/toolchain change and save on failure so the fail-fix-retry loop doesn't re-pay cold costs.
@@ -86,7 +88,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Scaffold & Toolchain Pinning | 0/TBD | Not started | - |
+| 1. Scaffold & Toolchain Pinning | 0/3 | Planned | - |
 | 2. Build & Cache | 0/TBD | Not started | - |
 | 3. Smoke Test (Publish Gate) | 0/TBD | Not started | - |
 | 4. Publish & Consumer UX | 0/TBD | Not started | - |
@@ -101,3 +103,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 ---
 *Roadmap created: 2026-04-15*
+*Phase 1 planned: 2026-04-15 (3 plans, wave-sequential)*
