@@ -1,0 +1,77 @@
+# Build Wheels (CUDA Windows) — Phase 1 scaffold.
+# Windows x64 CUDA wheel build workflow for llama-cpp-python.
+# Phase 1 scaffold — see .planning/phases/01-scaffold-toolchain-pinning/.
+# Full DOC-04 preamble (fork rationale, _MSC_VER wall, escape hatch, references)
+# lands in Plan 03; this header is a placeholder so the file parses today.
+
+name: Build Wheels (CUDA Windows)
+
+on:
+  workflow_dispatch:
+    inputs:
+      python_version:
+        description: 'Python version (CPython tag for the wheel)'
+        type: choice
+        default: '3.11'
+        options:
+          - '3.10'
+          - '3.11'
+          - '3.12'
+      cuda_version:
+        description: 'CUDA toolkit version (must match nvcc major.minor on runner)'
+        type: choice
+        default: '12.4.1'
+        options:
+          - '12.4.1'
+      msvc_toolset:
+        description: 'MSVC toolset MAJOR.MINOR (14.39 = VS 17.9, _MSC_VER 1939; raise only to work around runner image rotation — see upstream #1543)'
+        type: string
+        default: '14.39'
+      verbose:
+        description: 'Enable verbose preflight tracing (sets $env:VERBOSE=1)'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Exit green after preflight; skip downstream build (Phase 2+)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      # PLACEHOLDER — delete when Plan 02 populates preflight body.
+      - name: Preflight stub
+        run: Write-Host "preflight stub — Plan 02 adds body"
+
+  lint-workflow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 'Lint: ban the compiler-bypass workaround flag'
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKFLOW='.github/workflows/build-wheels-cuda-windows.yaml'
+          if grep -nH 'allow-unsupported-compiler' "$WORKFLOW"; then
+            echo "::error file=$WORKFLOW::the banned CMake flag is present (upstream #1543)"
+            exit 1
+          fi
+          echo "OK: no banned compiler-bypass workaround flag in $WORKFLOW"
+
+      - name: 'Lint: actionlint'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color .github/workflows/build-wheels-cuda-windows.yaml
