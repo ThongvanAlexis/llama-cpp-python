@@ -6,7 +6,7 @@ A GitHub Actions workflow, living in this fork of `abetlen/llama-cpp-python`, th
 
 ## Core Value
 
-**Produce a Windows x64 CUDA wheel that actually works at runtime** (loads a model, runs inference without segfault) and is installable via `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu124`.
+**Produce a Windows x64 CUDA wheel that actually works at runtime** (loads a model, runs inference without segfault) and is installable via `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu126`.
 
 The runtime-works part is non-negotiable: upstream's historical failure mode is wheels that install fine but segfault on first `Llama(...)` call when `-allow-unsupported-compiler` was used to paper over VS/nvcc incompatibility. Every publish must be gated on a passing smoke test.
 
@@ -26,7 +26,7 @@ The runtime-works part is non-negotiable: upstream's historical failure mode is 
 <!-- New scope for this fork. Each becomes a phase input. -->
 
 - [ ] New workflow file `.github/workflows/build-wheels-cuda-windows.yaml` dedicated to Windows (avoid upstream merge conflicts)
-- [ ] Matrix reduced to Windows-only; `python_version` and `cuda_version` exposed as `workflow_dispatch` inputs (defaults: 3.11, 12.4.1)
+- [ ] Matrix reduced to Windows-only; `python_version` and `cuda_version` exposed as `workflow_dispatch` inputs (defaults: 3.11, 12.6.3 — bumped from 12.4.1 after OQ1 resolution, see Key Decisions)
 - [ ] VS 2022 paths and `vs-version` range adapted from upstream's VS 2019 assumptions; VS version pinned to an nvcc-12.4-compatible range
 - [ ] sccache caching wired into CMake (C / CXX / CUDA compiler launchers)
 - [ ] CUDA installer zip cached (`actions/cache@v4`, keyed on CUDA version)
@@ -72,7 +72,7 @@ The runtime-works part is non-negotiable: upstream's historical failure mode is 
 - **Tech stack**: GitHub Actions YAML only. No custom runners. No shell scripts outside the workflow (keep debugging surface small).
 - **Platform**: Windows x64 runner (`windows-2022`, possibly `windows-2025` if VS 17.x / nvcc 12.4 alignment forces it).
 - **Python target (v1)**: 3.11 default, but 3.10/3.12/3.13 selectable via dispatch input.
-- **CUDA target (v1)**: 12.4.1 default (compatible with driver ≥ 525.x, any RTX 30xx/40xx). Dispatch input allows other 12.x.
+- **CUDA target (v1)**: 12.6.3 default (compatible with driver ≥ 560.x on Windows per NVIDIA compatibility matrix). Dispatch input allows other 12.x. Bumped from 12.4.1 on 2026-04-15 after OQ1 resolved: VC.14.39.17.9 component no longer offered on windows-2022 image (actions/runner-images#9701); MSVC 14.40 is the lowest-retired-safe toolset and requires nvcc `_MSC_VER` cap ≥ 1940, which starts at CUDA 12.5.
 - **Build budget**: ≤ 6h per job (GitHub free-tier runner timeout). Expected: 30–45 min cold, 5–10 min warm after caches.
 - **Wheel size**: can exceed 200 MB; fits GitHub Release (2 GB) and gh-pages limits.
 - **No reliance on upstream merge**: workflow lives in a separate file so rebases from upstream don't stomp it.
@@ -86,11 +86,12 @@ The runtime-works part is non-negotiable: upstream's historical failure mode is 
 | Publish via GitHub Pages pip-compatible index on `gh-pages` | Mirrors abetlen's original UX (`--extra-index-url`); makes `pip install llama-cpp-python` Just Work | — Pending |
 | Workflow trigger: `workflow_dispatch` only in v1 | Minimize noise while stabilizing the VS/nvcc fight; tag/release triggers deferred to v2 | — Pending |
 | Commit `llm_for_ci_test/tiny-llama.gguf` (27 KB) into the repo | Simplest smoke-test plumbing; size is negligible; CI just checks it out | — Pending |
-| Dispatch inputs for `python_version` + `cuda_version` (defaults 3.11 / 12.4.1) | Lets us rebuild for different combos without editing YAML; keeps v1 scope small | — Pending |
+| Dispatch inputs for `python_version` + `cuda_version` (defaults 3.11 / 12.6.3; msvc_toolset 14.40) | Lets us rebuild for different combos without editing YAML; keeps v1 scope small | Complete (2026-04-15) |
+| Bump default from CUDA 12.4.1 → 12.6.3 and MSVC 14.39 → 14.40 (OQ1 resolution) | `Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64` removed from windows-2022 image (actions/runner-images#9701). 14.40 requires nvcc `_MSC_VER` cap ≥ 1940, available starting CUDA 12.5; 12.6.3 is the most recent 12.6 patch confirmed available on the `nvidia/label/cuda-12.6.3` conda channel. | Complete (2026-04-15) — preflight diagnostic hard-failed at probe step with remediation hint; acceptable behavior. |
 | Ban `-allow-unsupported-compiler` | Historical failure mode: compiles but segfaults at runtime | — Pending |
 | Smoke test is a publish gate, not an advisory step | The *whole point* of the project is wheels that work at runtime, not wheels that install | — Pending |
 | Three extra caches: sccache, CUDA installer zip, mamba pkgs | Keepassxc-style cache stack; target cold 30–45 min → warm 5–10 min | — Pending |
 | Save caches on build failure | Most dev iterations will be failing builds; don't re-pay download cost every attempt | — Pending |
 
 ---
-*Last updated: 2026-04-15 after initialization*
+*Last updated: 2026-04-15 — OQ1 resolved, CUDA 12.4.1 → 12.6.3 + MSVC 14.39 → 14.40 pin bump after first preflight dispatch*

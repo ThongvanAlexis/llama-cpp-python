@@ -1,7 +1,7 @@
 # Requirements: Windows CUDA Wheels CI for llama-cpp-python (fork)
 
 **Defined:** 2026-04-15
-**Core Value:** Produce a Windows x64 CUDA wheel that actually works at runtime (loads a model and runs inference without segfault) and is installable via `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu124`.
+**Core Value:** Produce a Windows x64 CUDA wheel that actually works at runtime (loads a model and runs inference without segfault) and is installable via `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu126`.
 
 ## v1 Requirements
 
@@ -10,15 +10,15 @@
 - [x] **WF-01**: New workflow file `.github/workflows/build-wheels-cuda-windows.yaml` exists, separate from upstream's `build-wheels-cuda.yaml` (avoid merge conflicts on upstream pulls)
 - [x] **WF-02**: Workflow is triggered only by `workflow_dispatch` (no push/tag/release auto-triggers in v1)
 - [x] **WF-03**: Workflow exposes `python_version` input (default `3.11`) selectable at dispatch time
-- [x] **WF-04**: Workflow exposes `cuda_version` input (default `12.4.1`) selectable at dispatch time
+- [x] **WF-04**: Workflow exposes `cuda_version` input (default `12.6.3`; originally spec'd as `12.4.1`, bumped 2026-04-15 after OQ1 resolution — see STATE.md Decisions) selectable at dispatch time
 - [ ] **WF-05**: Workflow checks out the repo with `submodules: recursive` so `vendor/llama.cpp/` is populated
 
 ### Toolchain Pinning (Load-Bearing)
 
 - [x] **TC-01**: Runner is pinned to `windows-2022` explicitly (never `windows-latest`)
-- [ ] **TC-02**: MSVC toolset 14.39 (VS 17.9, `_MSC_VER = 1939`) is side-by-side installed via `vs_installer.exe modify --add Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64`
-- [ ] **TC-03**: MSVC 14.39 toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: 14.39`
-- [ ] **TC-04**: Preflight step asserts `cl.exe /Bv` reports `_MSC_VER` ≤ `1939`; build fails loudly if assertion fails
+- [ ] **TC-02**: MSVC toolset 14.40 (VS 17.10, `_MSC_VER = 1940`; originally 14.39/17.9/1939, bumped 2026-04-15 after OQ1) is side-by-side installed via `vs_installer.exe modify --add Microsoft.VisualStudio.Component.VC.14.40.17.10.x86.x64`; the component ID's VS suffix is derived from a toolset→VS hashtable (14.39→17.9, 14.40→17.10, 14.41→17.11, 14.42→17.12) with throw-on-unknown
+- [ ] **TC-03**: MSVC 14.40 toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: 14.40` and dynamic `vs-version` range (derived from the lookup table; for 14.40 → `[17.10,17.11)`)
+- [ ] **TC-04**: Preflight step asserts `cl.exe /Bv` reports `_MSC_VER` ≤ cap (computed from `${{ inputs.msvc_toolset }}` via `1900 + minor`; for default 14.40 → 1940); build fails loudly if assertion fails
 - [ ] **TC-05**: CUDA toolkit is installed via a single path (mamba `cuda-toolkit`); no parallel Jimver full-installer install
 - [ ] **TC-06**: Preflight step asserts `nvcc --version` matches the requested `cuda_version` input
 - [ ] **TC-07**: `CUDA_PATH` and `CUDA_PATH_V*_*` env variables are explicitly unset or normalized before build (prevent double-install confusion)
@@ -39,7 +39,7 @@
 - [ ] **BLD-09**: Each job step has a `timeout-minutes` bound to prevent 6h runner-timeout surprises
 - [ ] **BLD-10**: Produced wheel is tagged correctly: `llama_cpp_python-<version>-cp<pyver>-cp<pyver>-win_amd64.whl` (never `abi3` or `none-any`); wheel-tag regex assertion guards against drift
 - [ ] **BLD-11**: Wheel size is under 400 MB; CI fails if the produced wheel exceeds that
-- [ ] **BLD-12**: Wheel version embeds the llama.cpp submodule short SHA (e.g., `0.3.20+cu124.ll<sha>`) for reproducibility
+- [ ] **BLD-12**: Wheel version embeds the llama.cpp submodule short SHA (e.g., `0.3.20+cu126.ll<sha>`) for reproducibility
 - [ ] **BLD-13**: Wheel is uploaded as a GitHub Actions artifact via `actions/upload-artifact@v4` for downstream job consumption
 
 ### Smoke Test (Publish Gate)
@@ -57,7 +57,7 @@
 
 - [ ] **PUB-01**: `publish` job runs on `ubuntu-latest` (no CUDA needed for HTML generation + git push; 5× cheaper minutes)
 - [ ] **PUB-02**: Wheel is uploaded as an asset on a GitHub Release (authoritative storage) via `softprops/action-gh-release@v2`
-- [ ] **PUB-03**: Wheel file is placed at `whl/cu<tag>/llama-cpp-python/<wheel-filename>.whl` in the `gh-pages` branch (tag derived from CUDA major.minor, e.g., `cu124`)
+- [ ] **PUB-03**: Wheel file is placed at `whl/cu<tag>/llama-cpp-python/<wheel-filename>.whl` in the `gh-pages` branch (tag derived from CUDA major.minor, e.g., `cu126`)
 - [ ] **PUB-04**: `index.html` is regenerated from the actual directory listing of `whl/cu<tag>/llama-cpp-python/` on every publish (idempotent; append-only semantics)
 - [ ] **PUB-05**: `index.html` uses PEP 503-normalized project folder name `llama-cpp-python` (hyphens, lowercase)
 - [ ] **PUB-06**: Each `<a>` entry in `index.html` includes a `#sha256=<digest>` URL fragment for pip hash checking
@@ -68,10 +68,10 @@
 
 ### Documentation
 
-- [ ] **DOC-01**: README has an "Install (Windows CUDA)" section with the canonical command: `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu124`
-- [ ] **DOC-02**: README notes the minimum NVIDIA driver version (≥ 551.61 for CUDA 12.4)
+- [ ] **DOC-01**: README has an "Install (Windows CUDA)" section with the canonical command: `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu126`
+- [ ] **DOC-02**: README notes the minimum NVIDIA driver version (≥ 560.x for CUDA 12.6 per NVIDIA's driver-compat matrix; bumped from ≥ 551.61/CUDA 12.4 on 2026-04-15 after OQ1)
 - [ ] **DOC-03**: README notes the up-to-15-minute Fastly cache delay after a publish and suggests `pip install --no-cache-dir` when a fresh wheel isn't resolved
-- [ ] **DOC-04**: The workflow YAML contains inline comments explaining the MSVC 14.39 pin rationale and the `-allow-unsupported-compiler` ban (link to upstream #1543)
+- [ ] **DOC-04**: The workflow YAML contains inline comments explaining the MSVC 14.40 pin rationale (and the 14.39 → 14.40 bump history) and the `-allow-unsupported-compiler` ban (link to upstream #1543)
 - [ ] **DOC-05**: Release notes (GitHub Release body) record the llama.cpp submodule SHA at build time
 
 ## v2 Requirements
@@ -189,4 +189,4 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 ---
 *Requirements defined: 2026-04-15*
-*Last updated: 2026-04-15 — traceability populated after roadmap creation*
+*Last updated: 2026-04-15 — traceability populated after roadmap creation; OQ1 resolution (later the same day) bumped the cuda_version/msvc_toolset defaults from 12.4.1/14.39 to 12.6.3/14.40 and amended TC-02/TC-03/TC-04, WF-04, BLD-12, PUB-03, DOC-01/02/04, plus core-value URL (cu124 → cu126).*
