@@ -24,9 +24,9 @@ on:
         options:
           - '12.6.3'
       msvc_toolset:
-        description: 'MSVC toolset MAJOR.MINOR (14.40 = VS 17.10, _MSC_VER 1940; raise only to work around runner image rotation — see upstream #1543; OQ1 resolution 2026-04-15: 14.39/VC.14.39.17.9 component no longer offered on windows-2022, bumped to 14.40 + CUDA 12.6.3)'
+        description: 'MSVC toolset pin (auto = pick newest compatible with cuda_version). Override with MAJOR.MINOR (e.g. 14.44) for debugging only.'
         type: string
-        default: '14.40'
+        default: 'auto'
       verbose:
         description: 'Enable verbose preflight tracing (sets $env:VERBOSE=1)'
         type: boolean
@@ -79,7 +79,7 @@ jobs:
           python-version: ${{ inputs.python_version }}
           cache: 'pip'
 
-      - name: Probe MSVC ${{ inputs.msvc_toolset }} toolset on runner
+      - name: Probe and auto-select MSVC toolset
         id: probe-msvc
         shell: pwsh
         timeout-minutes: 5
@@ -87,15 +87,30 @@ jobs:
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
 
-          $toolset = '${{ inputs.msvc_toolset }}'
+          $inputToolset = '${{ inputs.msvc_toolset }}'
+          $cudaVersion = '${{ inputs.cuda_version }}'
 
-          # Validate toolset format (MAJOR.MINOR, major must be 14 for v1).
-          $parts = $toolset -split '\.'
-          if ($parts.Count -ne 2) { throw "msvc_toolset must be 'MAJOR.MINOR'; got '$toolset'" }
-          $major = [int]$parts[0]; $minor = [int]$parts[1]
-          if ($major -ne 14) { throw "msvc_toolset major must be 14 for v1 (got '$major')" }
+          # ── CUDA <-> MSVC compatibility matrix ──
+          # Maps CUDA major.minor to the maximum _MSC_VER that nvcc's host_config.h allows.
+          # Source: NVIDIA host_config.h `#if _MSC_VER >= <cap>` guards.
+          # Verified against: nerfstudio#3157, NVIDIA forums, Microsoft _MSC_VER docs.
+          # NOTE: CUDA 12.7 was never released (NVIDIA skipped from 12.6 to 12.8).
+          # NOTE: CUDA 13.0+ raises cap to ~1959 for VS 2026 support — add when needed.
+          $cudaMsvcCap = @{
+            '12.2' = 1939; '12.3' = 1939
+            '12.4' = 1949; '12.5' = 1949; '12.6' = 1949
+            '12.8' = 1949; '12.9' = 1949
+          }
 
-          # Find VS 2022 installation via vswhere (authoritative on windows-2022).
+          # Extract CUDA major.minor (e.g. '12.6.3' -> '12.6').
+          $cudaMajorMinor = ($cudaVersion -split '\.')[0..1] -join '.'
+          if (-not $cudaMsvcCap.ContainsKey($cudaMajorMinor)) {
+            $supported = ($cudaMsvcCap.Keys | Sort-Object) -join ', '
+            throw "CUDA $cudaMajorMinor is not in the compatibility matrix. Supported: $supported"
+          }
+          $mscVerCap = $cudaMsvcCap[$cudaMajorMinor]
+
+          # ── Find VS 2022 installation via vswhere ──
           $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
           if (-not (Test-Path $vswhere)) {
             throw "vswhere.exe not found at $vswhere — windows-2022 image layout has changed"
@@ -104,63 +119,113 @@ jobs:
           if (-not $installPath) {
             throw "No VS 2022 installation found on windows-2022 runner (vswhere returned empty)"
           }
-          Write-Host "VS 2022 detected at: $installPath"
 
-          # Enumerate installed MSVC toolsets from disk (authoritative — no channel queries).
-          # This replaces the previous install-on-missing approach which failed because
-          # Microsoft retires older VC components from the channel manifest
-          # (actions/runner-images#9701). Enumeration is instant (~0ms vs ~2min for install)
-          # and every dispatch log becomes self-documenting (shows all available toolsets).
+          # ── Enumerate installed MSVC toolsets from disk ──
+          # Authoritative — no channel queries. Enumeration is instant (~0ms).
+          # Every dispatch log becomes self-documenting (shows all available toolsets).
           $toolsRoot = Join-Path $installPath 'VC\Tools\MSVC'
           if (-not (Test-Path $toolsRoot)) {
             throw "MSVC tools root not found at $toolsRoot"
           }
-          $installedVersions = Get-ChildItem $toolsRoot -Directory |
-            ForEach-Object { $_.Name } | Sort-Object
-          $installedPins = $installedVersions |
+          $installedVersions = @(Get-ChildItem $toolsRoot -Directory |
+            ForEach-Object { $_.Name } | Sort-Object)
+          $installedPins = @($installedVersions |
             ForEach-Object { ($_ -split '\.')[0..1] -join '.' } |
-            Sort-Object -Unique
+            Sort-Object -Unique)
 
-          # Unconditional enumeration — every dispatch log lists all available toolsets.
-          Write-Host "--- Installed MSVC toolsets on this runner ---"
+          # Build a lookup: pin -> full version (latest patch).
+          $pinToFull = @{}
           foreach ($v in $installedVersions) {
             $pin = ($v -split '\.')[0..1] -join '.'
-            $marker = if ($pin -eq $toolset) { " <-- requested" } else { "" }
-            Write-Host "  $v (pin: $pin)$marker"
-          }
-          Write-Host "--- Available pins: $($installedPins -join ', ') ---"
-
-          # Match requested toolset as prefix against installed versions.
-          $matched = $installedVersions | Where-Object { $_ -like "$toolset.*" }
-          if (-not $matched) {
-            $msg = "Requested MSVC toolset '$toolset' is NOT installed on this windows-2022 image.`n" +
-                   "Available toolset pins: $($installedPins -join ', ')`n" +
-                   "`n" +
-                   "REMEDIATION:`n" +
-                   "  - Re-dispatch with msvc_toolset set to one of the above pins`n" +
-                   "  - Update cuda_version accordingly so CUDA nvcc's _MSC_VER cap covers the new toolset`n" +
-                   "  - See actions/runner-images#9701 for VC component removal history`n" +
-                   "  - See upstream abetlen/llama-cpp-python#1543 for _MSC_VER/nvcc compatibility"
-            Write-Error $msg
-            exit 1
+            $pinToFull[$pin] = $v  # last write wins = latest patch
           }
 
-          # Take the latest patch version if multiple match (e.g. 14.42.34433 and 14.42.34435).
-          $fullVersion = ($matched | Select-Object -Last 1)
-          Write-Host "Matched: $toolset -> $fullVersion"
+          # Compute _MSC_VER for each pin: 1900 + minor (e.g. 14.44 -> 1944).
+          $pinToMscVer = @{}
+          foreach ($pin in $installedPins) {
+            $pinParts = $pin -split '\.'
+            $pinToMscVer[$pin] = 1900 + [int]$pinParts[1]
+          }
 
-          # Emit outputs for downstream steps.
-          "msvc_full_version=$fullVersion" >> $env:GITHUB_OUTPUT
+          # ── Auto-select or validate override ──
+          if ($inputToolset -eq 'auto') {
+            # Filter installed toolsets where _MSC_VER <= cap.
+            $compatible = @($installedPins | Where-Object { $pinToMscVer[$_] -le $mscVerCap })
+            if ($compatible.Count -eq 0) {
+              $msg = "No installed MSVC toolset is compatible with CUDA $cudaMajorMinor (cap: _MSC_VER <= $mscVerCap).`n" +
+                     "Installed pins: $($installedPins -join ', ')`n" +
+                     "Their _MSC_VER values: $(($installedPins | ForEach-Object { "$_ ($($pinToMscVer[$_]))" }) -join ', ')`n" +
+                     "`n" +
+                     "REMEDIATION:`n" +
+                     "  - Use a CUDA version with a higher _MSC_VER cap (e.g. CUDA 13.0+)`n" +
+                     "  - Or use a runner image with an older MSVC toolset`n" +
+                     "  - See upstream abetlen/llama-cpp-python#1543 for _MSC_VER/nvcc compatibility"
+              throw $msg
+            }
+            # Pick the newest compatible toolset (highest minor).
+            $selectedPin = $compatible | Select-Object -Last 1
+            $mode = 'auto'
+          } else {
+            # Override mode: validate format, installed, compatible.
+            $parts = $inputToolset -split '\.'
+            if ($parts.Count -ne 2) { throw "msvc_toolset must be 'auto' or 'MAJOR.MINOR'; got '$inputToolset'" }
+            $major = [int]$parts[0]; $minor = [int]$parts[1]
+            if ($major -ne 14) { throw "msvc_toolset major must be 14 for VS 2022 (got '$major')" }
+
+            # Check installed.
+            if (-not $pinToFull.ContainsKey($inputToolset)) {
+              $msg = "Requested MSVC toolset '$inputToolset' is NOT installed on this windows-2022 image.`n" +
+                     "Available toolset pins: $($installedPins -join ', ')`n" +
+                     "`n" +
+                     "REMEDIATION:`n" +
+                     "  - Re-dispatch with msvc_toolset=auto (recommended) or one of the above pins`n" +
+                     "  - See actions/runner-images#9701 for VC component removal history`n" +
+                     "  - See upstream abetlen/llama-cpp-python#1543 for _MSC_VER/nvcc compatibility"
+              Write-Error $msg
+              exit 1
+            }
+
+            # Check compatible with CUDA.
+            $overrideMscVer = 1900 + $minor
+            if ($overrideMscVer -gt $mscVerCap) {
+              throw "MSVC $inputToolset (_MSC_VER=$overrideMscVer) exceeds cap $mscVerCap for CUDA $cudaMajorMinor. Use a lower toolset or newer CUDA."
+            }
+            $selectedPin = $inputToolset
+            $mode = 'override'
+          }
+
+          $selectedFull = $pinToFull[$selectedPin]
+          $selectedMscVer = $pinToMscVer[$selectedPin]
+
+          # ── Unconditional diagnostic logging ──
+          Write-Host "--- MSVC Auto-Select ---"
+          Write-Host "CUDA version: $cudaMajorMinor (cap: _MSC_VER <= $mscVerCap)"
+          Write-Host "Installed toolsets:"
+          foreach ($v in $installedVersions) {
+            $pin = ($v -split '\.')[0..1] -join '.'
+            $compat = if ($pinToMscVer[$pin] -le $mscVerCap) { "compatible" } else { "EXCEEDS CAP" }
+            $sel = if ($pin -eq $selectedPin -and $v -eq $selectedFull) { " <-- selected" } else { "" }
+            Write-Host "  $v (pin: $pin, _MSC_VER=$($pinToMscVer[$pin]), $compat)$sel"
+          }
+          Write-Host "Selected: $selectedPin (_MSC_VER=$selectedMscVer, full=$selectedFull)"
+          Write-Host "Mode: $mode"
+          Write-Host "---"
+
+          # ── Emit outputs for downstream steps ──
+          "selected_toolset=$selectedPin" >> $env:GITHUB_OUTPUT
+          "selected_full_version=$selectedFull" >> $env:GITHUB_OUTPUT
+          "msc_ver_cap=$mscVerCap" >> $env:GITHUB_OUTPUT
           "install_path=$installPath" >> $env:GITHUB_OUTPUT
 
-      - name: Activate MSVC ${{ inputs.msvc_toolset }} toolset
+      - name: Activate MSVC ${{ steps.probe-msvc.outputs.selected_toolset }} toolset
         uses: ilammy/msvc-dev-cmd@v1
         with:
           # ilammy's `toolset:` input activates the specific MSVC toolset within whatever
           # VS version is installed. No need to derive a vs-version range — ilammy wraps
           # vcvarsall.bat -vcvars_ver=<toolset> which handles the mapping internally.
-          # The probe-msvc step has already verified the toolset exists on disk.
-          toolset: ${{ inputs.msvc_toolset }}
+          # The probe-msvc step has already verified the toolset exists on disk and is
+          # compatible with the chosen CUDA version.
+          toolset: ${{ steps.probe-msvc.outputs.selected_toolset }}
           arch: amd64
 
       - name: Setup mamba
@@ -187,20 +252,23 @@ jobs:
             -c "${CUDA_CHANNEL}" \
             "${CUDA_CHANNEL}::cuda-toolkit=${CUDA_VERSION}"
 
-      - name: 'Preflight: Assert MSVC _MSC_VER <= cap'
+      - name: 'Preflight: Assert MSVC _MSC_VER matches selected toolset and CUDA cap'
         id: assert-msvc
         shell: pwsh
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
 
-          # TC-04: cap is COMPUTED from ${{ inputs.msvc_toolset }} — never hardcoded.
-          $toolset = '${{ inputs.msvc_toolset }}'
-          $parts = $toolset -split '\.'
-          if ($parts.Count -ne 2) { throw "msvc_toolset must be 'MAJOR.MINOR'; got '$toolset'" }
-          $major = [int]$parts[0]; $minor = [int]$parts[1]
-          if ($major -ne 14) { throw "msvc_toolset major must be 14 for v1 (got '$major')" }
-          $cap = 1900 + $minor   # 14.39 -> 1939; 14.40 -> 1940
+          # TC-04: two-part assertion using outputs from the probe-msvc step.
+          # 1. Pin integrity: cl.exe _MSC_VER == expected value for selected toolset
+          # 2. CUDA compatibility: cl.exe _MSC_VER <= CUDA cap
+          $selectedToolset = '${{ steps.probe-msvc.outputs.selected_toolset }}'
+          $mscVerCap = [int]'${{ steps.probe-msvc.outputs.msc_ver_cap }}'
+          $cudaVersion = '${{ inputs.cuda_version }}'
+
+          # Derive expected _MSC_VER from selected toolset (e.g. 14.44 -> 1944).
+          $parts = $selectedToolset -split '\.'
+          $expectedMscVer = 1900 + [int]$parts[1]
 
           # cl.exe writes banner to stderr; redirect 2>&1.
           $banner = (cl.exe 2>&1 | Out-String)
@@ -208,25 +276,37 @@ jobs:
           if (-not $match.Success) { throw "Failed to parse cl.exe banner: $banner" }
           $clMajor = [int]$match.Groups[1].Value
           $clMinor = [int]$match.Groups[2].Value
-          # cl.exe reports '19.39'; _MSC_VER is clMajor*100 + clMinor (e.g. 19.39 -> 1939).
-          $mscVer = $clMajor * 100 + $clMinor
+          # cl.exe reports '19.44'; _MSC_VER is clMajor*100 + clMinor (e.g. 19.44 -> 1944).
+          $actualMscVer = $clMajor * 100 + $clMinor
 
-          if ($mscVer -gt $cap) {
-            $msg = "MSVC _MSC_VER=$mscVer exceeds cap=$cap (derived from msvc_toolset=$toolset).`n" +
+          # Check 1: Pin integrity — did ilammy activate the exact toolset we asked for?
+          if ($actualMscVer -ne $expectedMscVer) {
+            $msg = "Pin integrity failed: expected _MSC_VER=$expectedMscVer for toolset $selectedToolset, got $actualMscVer.`n" +
                    "`n" +
                    "This means ilammy/msvc-dev-cmd did NOT activate the requested toolset correctly.`n" +
-                   "The probe-msvc step confirmed the toolset is on disk, but cl.exe reports a newer version.`n" +
+                   "The probe-msvc step selected toolset $selectedToolset, but cl.exe reports a different version.`n" +
                    "`n" +
                    "REMEDIATION:`n" +
-                   "  1. Check the 'Probe MSVC' step log — does the matched full version look right?`n" +
+                   "  1. Check the 'Probe and auto-select MSVC toolset' step log`n" +
                    "  2. Verify the active toolset: cl.exe /Bv in a debug step`n" +
-                   "  3. Re-dispatch with a different msvc_toolset pin (see available pins in probe log)`n" +
-                   "  4. See upstream abetlen/llama-cpp-python#1543 for why _MSC_VER > cap produces segfaulting wheels"
-            Write-Error $msg
-            exit 1
+                   "  3. Re-dispatch with an explicit msvc_toolset override`n" +
+                   "  4. See upstream abetlen/llama-cpp-python#1543 for why _MSC_VER mismatch produces segfaulting wheels"
+            throw $msg
           }
-          Write-Host "OK: _MSC_VER=$mscVer <= cap=$cap"
-          "msc_ver=$mscVer" >> $env:GITHUB_OUTPUT
+
+          # Check 2: CUDA compatibility — is the activated MSVC within nvcc's accepted range?
+          if ($actualMscVer -gt $mscVerCap) {
+            $msg = "CUDA compatibility failed: _MSC_VER=$actualMscVer exceeds cap $mscVerCap for CUDA $cudaVersion.`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - Use a newer CUDA version with a higher _MSC_VER cap`n" +
+                   "  - Or use msvc_toolset override to pin a lower toolset`n" +
+                   "  - See upstream abetlen/llama-cpp-python#1543 for _MSC_VER/nvcc compatibility"
+            throw $msg
+          }
+
+          Write-Host "OK: _MSC_VER=$actualMscVer (expected=$expectedMscVer, cap=$mscVerCap)"
+          "msc_ver=$actualMscVer" >> $env:GITHUB_OUTPUT
 
       - name: 'Preflight: Assert nvcc matches cuda_version'
         id: assert-nvcc
