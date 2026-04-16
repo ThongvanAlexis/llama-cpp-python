@@ -16,8 +16,8 @@
 ### Toolchain Pinning (Load-Bearing)
 
 - [x] **TC-01**: Runner is pinned to `windows-2022` explicitly (never `windows-latest`)
-- [ ] **TC-02**: MSVC toolset 14.40 (VS 17.10, `_MSC_VER = 1940`; originally 14.39/17.9/1939, bumped 2026-04-15 after OQ1) is side-by-side installed via `vs_installer.exe modify --add Microsoft.VisualStudio.Component.VC.14.40.17.10.x86.x64`; the component ID's VS suffix is derived from a toolset→VS hashtable (14.39→17.9, 14.40→17.10, 14.41→17.11, 14.42→17.12) with throw-on-unknown
-- [ ] **TC-03**: MSVC 14.40 toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: 14.40` and dynamic `vs-version` range (derived from the lookup table; for 14.40 → `[17.10,17.11)`)
+- [ ] **TC-02**: MSVC toolset is verified present on the runner by enumerating `VC\Tools\MSVC\*` directories on disk (originally spec'd as `vs_installer.exe modify` install; abandoned 2026-04-16 after both 14.39 and 14.40 VC components proved retired from the windows-2022 channel manifest per actions/runner-images#9701). If the requested pin is not found, the step fails with a list of all available toolset pins so the user can re-dispatch with a valid pin
+- [ ] **TC-03**: MSVC toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: ${{ inputs.msvc_toolset }}` (ilammy wraps `vcvarsall.bat -vcvars_ver=<toolset>` internally; no explicit `vs-version` range needed — simplified 2026-04-16 after removing the toolsetToVs hashtable)
 - [ ] **TC-04**: Preflight step asserts `cl.exe /Bv` reports `_MSC_VER` ≤ cap (computed from `${{ inputs.msvc_toolset }}` via `1900 + minor`; for default 14.40 → 1940); build fails loudly if assertion fails
 - [ ] **TC-05**: CUDA toolkit is installed via a single path (mamba `cuda-toolkit`); no parallel Jimver full-installer install
 - [ ] **TC-06**: Preflight step asserts `nvcc --version` matches the requested `cuda_version` input

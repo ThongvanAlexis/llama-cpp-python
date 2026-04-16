@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Completed 01-01-PLAN.md
 last_updated: "2026-04-15T21:30:00.000Z"
-last_activity: 2026-04-15 — Plan 02 Tasks 1+2 complete (09d7a78, 2cdf4c8); first dispatch hit 2 issues (ban-grep self-match + OQ1 14.39 unavailable); fixes landed on main (23ce327, 7fb1199); awaiting 2nd dispatch with 14.40/12.6.3 defaults
+last_activity: 2026-04-16 — Plan 02 probe step refactored from install-on-missing to enumerate-from-disk (fb1497d); 2nd dispatch (14.40) also failed (component retired from channel manifest); enumeration strategy eliminates install dependency entirely; awaiting 3rd dispatch to discover actual available pins
 progress:
   total_phases: 4
   completed_phases: 0
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-15)
 Phase: 1 of 4 (Scaffold & Toolchain Pinning)
 Plan: 2 of 3 in current phase (Plan 01 complete — workflow scaffold + lint job operational)
 Status: In progress
-Last activity: 2026-04-15 — Plan 02 Tasks 1+2 complete (09d7a78, 2cdf4c8); first dispatch found 2 issues (ban-grep self-match + OQ1 14.39 unavailable); fixes committed (23ce327, 7fb1199); Task 3 (dispatch checkpoint) re-opened for 2nd attempt with 14.40/12.6.3 defaults
+Last activity: 2026-04-16 — Plan 02 probe step refactored: enumerate-from-disk replaces install-on-missing (fb1497d); 2nd dispatch (14.40) also failed because VC.14.40.17.10 component retired from channel manifest; enumeration approach eliminates vs_installer dependency entirely; awaiting 3rd dispatch to discover actual available toolset pins
 
 Progress: [███░░░░░░░] 33%
 
@@ -73,6 +73,7 @@ Recent decisions affecting current work (from PROJECT.md + research):
 - [Phase 01-scaffold-toolchain-pinning]: Strict bash prelude 'set -euo pipefail' adopted as Plan 02/03 reusable idiom for all shell:bash blocks
 - [Phase 01-scaffold-toolchain-pinning 2026-04-15]: OQ1 resolved — `Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64` component NOT available on current windows-2022 image (actions/runner-images#9701). Chose Option B: bump default toolchain from CUDA 12.4.1 + MSVC 14.39 to CUDA 12.6.3 + MSVC 14.40. Workflow also gains a toolset→VS-suffix hashtable lookup (14.39/17.9, 14.40/17.10, 14.41/17.11, 14.42/17.12) with throw-on-unknown; ilammy `vs-version` now derives dynamically from the lookup (no more hardcoded `[17.9,17.10)`). Pre-dispatch sanity: `12.6.3` exists on `nvidia/label/cuda-12.6.3` noarch channel.
 - [Phase 01-scaffold-toolchain-pinning 2026-04-15]: Discovered + fixed ban-grep self-match bug in Plan 01 lint step: `grep -nH 'allow-unsupported-compiler'` matched its own source line causing every dispatch to fail lint. Replaced with `grep -nHE 'allow[-]unsupported[-]compiler'` — regex character class `[-]` contains only `-`, matches real hyphens in targets but not the pattern's own literal text. Invariant flips from count=1 to count=0.
+- [Phase 01-scaffold-toolchain-pinning 2026-04-16]: MSVC probe step refactored from install-on-missing to enumerate-from-disk. The vs_installer approach failed for both 14.39 AND 14.40 because Microsoft retired those VC components from the windows-2022 channel manifest (actions/runner-images#9701). New approach: enumerate `VC\Tools\MSVC\*` directories on disk (instant, ~0ms); if requested pin present, use it; if not, fail with full list of available pins. Benefits: (1) no dependency on retired channel components, (2) every dispatch log is self-documenting, (3) ilammy simplified to `toolset:` input (no vs-version range derivation). Removed: toolsetToVs hashtable, vs_installer code, vs_version_range/component_id outputs.
 
 ### Pending Todos
 
@@ -84,11 +85,11 @@ None yet.
 
 [Issues that affect future work]
 
-- [Phase 1 resolved 2026-04-15]: MSVC 14.39 component (`Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64`) confirmed NOT available on current windows-2022 image (probe step hard-failed with remediation hint, as designed). Option B taken: default bumped to CUDA 12.6.3 + MSVC 14.40 (VC.14.40.17.10.x86.x64). If 14.40 component is ALSO unavailable on re-dispatch, fallback paths remain: chocolatey `vs-buildtools-vcbuildtools-2022` pinned, or 14.41/14.42 via the new hashtable lookup.
+- [Phase 1 resolved 2026-04-16]: MSVC component availability on windows-2022 — FULLY resolved. Both 14.39 and 14.40 components were unavailable via vs_installer channel manifest. Root cause: Microsoft retires older VC components from the manifest but the toolset files remain on disk. Solution: enumerate `VC\Tools\MSVC\*` directories instead of querying channel manifest (commit fb1497d). Next dispatch will reveal which pins are actually installed; default will be updated to match.
 - [Phase 2 pre-plan risk]: `hashFiles('vendor/llama.cpp/.git/HEAD')` behaves differently when submodule `.git` is a file (git-dir indirection) vs a directory — verify empirically on first Phase 1 run.
 
 ## Session Continuity
 
-Last session: 2026-04-15T20:59:30.799Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-04-16T06:07:57Z
+Stopped at: Plan 01-02 Task 3 checkpoint — MSVC probe refactored (fb1497d); awaiting 3rd dispatch to discover available toolset pins
 Resume file: None

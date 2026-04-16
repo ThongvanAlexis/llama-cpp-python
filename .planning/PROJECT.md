@@ -92,6 +92,7 @@ The runtime-works part is non-negotiable: upstream's historical failure mode is 
 | Smoke test is a publish gate, not an advisory step | The *whole point* of the project is wheels that work at runtime, not wheels that install | — Pending |
 | Three extra caches: sccache, CUDA installer zip, mamba pkgs | Keepassxc-style cache stack; target cold 30–45 min → warm 5–10 min | — Pending |
 | Save caches on build failure | Most dev iterations will be failing builds; don't re-pay download cost every attempt | — Pending |
+| Enumerate runner MSVC toolsets from disk, not install via vs_installer | Both 14.39 and 14.40 VC components retired from windows-2022 channel manifest (actions/runner-images#9701). Enumeration of `VC\Tools\MSVC\*` is instant, authoritative, and self-documenting. If pin not found, fail with list of available pins. | Complete (2026-04-16) |
 
 ---
-*Last updated: 2026-04-15 — OQ1 resolved, CUDA 12.4.1 → 12.6.3 + MSVC 14.39 → 14.40 pin bump after first preflight dispatch*
+*Last updated: 2026-04-16 — MSVC probe refactored: enumerate from disk instead of install-on-missing (vs_installer approach abandoned after both 14.39 and 14.40 components proved unavailable)*
