@@ -79,107 +79,89 @@ jobs:
           python-version: ${{ inputs.python_version }}
           cache: 'pip'
 
-      - name: Probe and install MSVC ${{ inputs.msvc_toolset }} toolset
-        id: probe-install-msvc
+      - name: Probe MSVC ${{ inputs.msvc_toolset }} toolset on runner
+        id: probe-msvc
         shell: pwsh
-        timeout-minutes: 15
+        timeout-minutes: 5
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
 
           $toolset = '${{ inputs.msvc_toolset }}'
-          # Component ID format: Microsoft.VisualStudio.Component.VC.<major>.<minor>.<vs>.x86.x64
-          # The <vs> suffix is the VS 17.x version that originally shipped the toolset.
-          # Mapping (hard-locked; updating requires verifying the component ID exists on
-          # Microsoft's channel manifest AND that the matching CUDA nvcc cap allows it):
-          #   14.39 → 17.9     (retired from windows-2022 per actions/runner-images#9701)
-          #   14.40 → 17.10    (Phase 1 current default; CUDA 12.5+ required)
-          #   14.41 → 17.11
-          #   14.42 → 17.12
-          # Throw-on-unknown is intentional: a silent fallback would re-introduce the
-          # upstream #1543 failure mode where a wrong toolset compiles but segfaults.
-          $toolsetToVs = @{
-            '14.39' = '17.9'
-            '14.40' = '17.10'
-            '14.41' = '17.11'
-            '14.42' = '17.12'
-          }
-          if (-not $toolsetToVs.ContainsKey($toolset)) {
-            throw "Unknown msvc_toolset '$toolset'. Supported: $($toolsetToVs.Keys -join ', '). Update the toolsetToVs table in build-wheels-cuda-windows.yaml to add a new toolset."
-          }
-          $vsSuffix = $toolsetToVs[$toolset]
-          # For 14.40 → "Microsoft.VisualStudio.Component.VC.14.40.17.10.x86.x64"
-          $componentId = "Microsoft.VisualStudio.Component.VC.$toolset.$vsSuffix.x86.x64"
 
+          # Validate toolset format (MAJOR.MINOR, major must be 14 for v1).
+          $parts = $toolset -split '\.'
+          if ($parts.Count -ne 2) { throw "msvc_toolset must be 'MAJOR.MINOR'; got '$toolset'" }
+          $major = [int]$parts[0]; $minor = [int]$parts[1]
+          if ($major -ne 14) { throw "msvc_toolset major must be 14 for v1 (got '$major')" }
+
+          # Find VS 2022 installation via vswhere (authoritative on windows-2022).
           $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
           if (-not (Test-Path $vswhere)) {
             throw "vswhere.exe not found at $vswhere — windows-2022 image layout has changed"
           }
-
-          # Probe: is ANY VS 2022 install present?
           $installPath = & $vswhere -latest -property installationPath
           if (-not $installPath) {
             throw "No VS 2022 installation found on windows-2022 runner (vswhere returned empty)"
           }
           Write-Host "VS 2022 detected at: $installPath"
 
-          # Probe: is the requested toolset component offerable on this image?
-          $hasComponent = & $vswhere -products * -requires $componentId -property installationPath
-          if (-not $hasComponent) {
-            $msg = "MSVC toolset $toolset component is NOT available on this windows-2022 image.`n" +
-                   "Component probed: $componentId`n" +
+          # Enumerate installed MSVC toolsets from disk (authoritative — no channel queries).
+          # This replaces the previous install-on-missing approach which failed because
+          # Microsoft retires older VC components from the channel manifest
+          # (actions/runner-images#9701). Enumeration is instant (~0ms vs ~2min for install)
+          # and every dispatch log becomes self-documenting (shows all available toolsets).
+          $toolsRoot = Join-Path $installPath 'VC\Tools\MSVC'
+          if (-not (Test-Path $toolsRoot)) {
+            throw "MSVC tools root not found at $toolsRoot"
+          }
+          $installedVersions = Get-ChildItem $toolsRoot -Directory |
+            ForEach-Object { $_.Name } | Sort-Object
+          $installedPins = $installedVersions |
+            ForEach-Object { ($_ -split '\.')[0..1] -join '.' } |
+            Sort-Object -Unique
+
+          # Unconditional enumeration — every dispatch log lists all available toolsets.
+          Write-Host "--- Installed MSVC toolsets on this runner ---"
+          foreach ($v in $installedVersions) {
+            $pin = ($v -split '\.')[0..1] -join '.'
+            $marker = if ($pin -eq $toolset) { " <-- requested" } else { "" }
+            Write-Host "  $v (pin: $pin)$marker"
+          }
+          Write-Host "--- Available pins: $($installedPins -join ', ') ---"
+
+          # Match requested toolset as prefix against installed versions.
+          $matched = $installedVersions | Where-Object { $_ -like "$toolset.*" }
+          if (-not $matched) {
+            $msg = "Requested MSVC toolset '$toolset' is NOT installed on this windows-2022 image.`n" +
+                   "Available toolset pins: $($installedPins -join ', ')`n" +
                    "`n" +
                    "REMEDIATION:`n" +
-                   "  - Re-dispatch with the next-supported toolset (e.g. msvc_toolset=14.41 if 14.40 is retired); update cuda_version accordingly so CUDA nvcc's _MSC_VER cap covers the new toolset`n" +
+                   "  - Re-dispatch with msvc_toolset set to one of the above pins`n" +
+                   "  - Update cuda_version accordingly so CUDA nvcc's _MSC_VER cap covers the new toolset`n" +
                    "  - See actions/runner-images#9701 for VC component removal history`n" +
                    "  - See upstream abetlen/llama-cpp-python#1543 for _MSC_VER/nvcc compatibility"
             Write-Error $msg
             exit 1
           }
 
-          # Install: modify VS to add the requested toolset component
-          $installer = Join-Path $installPath '..\..\..\..\Installer\setup.exe' | Resolve-Path
-          Write-Host "Starting vs_installer.exe modify to add $componentId ..."
-          $proc = Start-Process -Wait -PassThru -FilePath $installer -ArgumentList @(
-            'modify',
-            '--installPath', "`"$installPath`"",
-            '--add', $componentId,
-            '--quiet',
-            '--norestart'
-          )
-          # 3010 = success-with-reboot-required, acceptable on CI
-          if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
-            throw "vs_installer.exe modify failed with exit code $($proc.ExitCode)"
-          }
+          # Take the latest patch version if multiple match (e.g. 14.42.34433 and 14.42.34435).
+          $fullVersion = ($matched | Select-Object -Last 1)
+          Write-Host "Matched: $toolset -> $fullVersion"
 
-          # Re-probe: confirm component is now installed on disk
-          $confirmPath = & $vswhere -products * -requires $componentId -property installationPath
-          if (-not $confirmPath) {
-            throw "Post-install probe failed: $componentId still not present. Installer may have silently failed."
-          }
-          Write-Host "MSVC $toolset component installed at: $confirmPath"
-
-          # Emit the derived vs-version semver range for the ilammy/msvc-dev-cmd step.
-          # Pattern: '[17.X,17.(X+1))' — lower bound inclusive, upper exclusive.
-          # Example: 14.40 → vsSuffix 17.10 → '[17.10,17.11)'
-          $vsParts = $vsSuffix -split '\.'
-          if ($vsParts.Count -ne 2) { throw "Derived vsSuffix '$vsSuffix' is not MAJOR.MINOR" }
-          $vsMajor = [int]$vsParts[0]; $vsMinor = [int]$vsParts[1]
-          $vsRange = "[$vsMajor.$vsMinor,$vsMajor.$($vsMinor + 1))"
-          Write-Host "Derived vs-version range for toolset $toolset -> $vsRange"
-          "vs_version_range=$vsRange" >> $env:GITHUB_OUTPUT
-          "component_id=$componentId" >> $env:GITHUB_OUTPUT
+          # Emit outputs for downstream steps.
+          "msvc_full_version=$fullVersion" >> $env:GITHUB_OUTPUT
+          "install_path=$installPath" >> $env:GITHUB_OUTPUT
 
       - name: Activate MSVC ${{ inputs.msvc_toolset }} toolset
         uses: ilammy/msvc-dev-cmd@v1
         with:
+          # ilammy's `toolset:` input activates the specific MSVC toolset within whatever
+          # VS version is installed. No need to derive a vs-version range — ilammy wraps
+          # vcvarsall.bat -vcvars_ver=<toolset> which handles the mapping internally.
+          # The probe-msvc step has already verified the toolset exists on disk.
           toolset: ${{ inputs.msvc_toolset }}
-          # vs-version range is derived from msvc_toolset via the lookup table in the
-          # probe-install step (14.40 → '[17.10,17.11)'). Keeping this dynamic avoids
-          # the drift trap where bumping msvc_toolset but forgetting to widen the range
-          # would let an out-of-range VS edition activate (upstream #1543 root cause).
-          vs-version: ${{ steps.probe-install-msvc.outputs.vs_version_range }}
-          arch: x64
+          arch: amd64
 
       - name: Setup mamba
         uses: conda-incubator/setup-miniconda@v3.1.0
@@ -232,13 +214,13 @@ jobs:
           if ($mscVer -gt $cap) {
             $msg = "MSVC _MSC_VER=$mscVer exceeds cap=$cap (derived from msvc_toolset=$toolset).`n" +
                    "`n" +
-                   "This means ilammy/msvc-dev-cmd did NOT downgrade the active toolset correctly,`n" +
-                   "OR the vs_installer.exe modify silently failed to install the requested component.`n" +
+                   "This means ilammy/msvc-dev-cmd did NOT activate the requested toolset correctly.`n" +
+                   "The probe-msvc step confirmed the toolset is on disk, but cl.exe reports a newer version.`n" +
                    "`n" +
                    "REMEDIATION:`n" +
-                   "  1. Check the 'Probe and install MSVC' step log for silent failures`n" +
-                   "  2. Re-run with msvc_toolset=14.40 if 14.39 has been retired from the image`n" +
-                   "  3. Verify the active toolset: cl.exe /Bv in a debug step`n" +
+                   "  1. Check the 'Probe MSVC' step log — does the matched full version look right?`n" +
+                   "  2. Verify the active toolset: cl.exe /Bv in a debug step`n" +
+                   "  3. Re-dispatch with a different msvc_toolset pin (see available pins in probe log)`n" +
                    "  4. See upstream abetlen/llama-cpp-python#1543 for why _MSC_VER > cap produces segfaulting wheels"
             Write-Error $msg
             exit 1
