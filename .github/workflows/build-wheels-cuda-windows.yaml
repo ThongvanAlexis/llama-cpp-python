@@ -449,6 +449,82 @@ jobs:
           "vs_install_path=$vsRoot" >> $env:GITHUB_OUTPUT
           "bc_path=$bcPath" >> $env:GITHUB_OUTPUT
 
+      - name: 'Preflight: Emit forensics summary'
+        if: success()
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $osInfo = Get-ComputerInfo -Property OsName,OsBuildNumber
+          $cDrive = Get-PSDrive C
+          try {
+            $mambaVer = (mamba --version 2>&1 | Select-Object -First 1).ToString().Trim()
+          } catch {
+            $mambaVer = 'unknown'
+          }
+
+          $summary = @"
+          ## Preflight Green — Toolchain Fingerprint
+
+          | Property | Value |
+          |---|---|
+          | Runner OS | $($osInfo.OsName) build $($osInfo.OsBuildNumber) |
+          | VS install path | ${{ steps.discover-vs.outputs.vs_install_path }} |
+          | VS BuildCustomizations | ${{ steps.discover-vs.outputs.bc_path }} |
+          | MSVC toolset | ${{ inputs.msvc_toolset }} (``_MSC_VER=${{ steps.assert-msvc.outputs.msc_ver }}``) |
+          | nvcc version | ${{ steps.assert-nvcc.outputs.nvcc_version }} |
+          | CUDA path | $env:CUDA_PATH |
+          | Python | ${{ steps.assert-python.outputs.python_version }} at ${{ steps.assert-python.outputs.python_path }} |
+          | llama.cpp SHA | ${{ steps.assert-submodule.outputs.llama_sha }} |
+          | mamba version | $mambaVer |
+          | Disk free (C:) | $([math]::Round($cDrive.Free / 1GB, 2)) GB |
+          | CPU | $env:PROCESSOR_IDENTIFIER |
+
+          **Dispatch inputs:**
+          - ``python_version=${{ inputs.python_version }}``
+          - ``cuda_version=${{ inputs.cuda_version }}``
+          - ``msvc_toolset=${{ inputs.msvc_toolset }}``
+          - ``dry_run=${{ inputs.dry_run }}``
+          - ``verbose=${{ inputs.verbose }}``
+
+          _Six weeks from now when a wheel built by this run segfaults for a user, this table is sufficient to reconstruct the exact toolchain state without re-dispatching._
+          "@
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Host $summary
+          Write-Host "✅ Toolchain preflight passed"
+
+      - name: 'Preflight: Emit remediation hint on failure'
+        if: failure()
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'SilentlyContinue'   # do NOT fail the summary step itself
+
+          $hint = @"
+          ## Preflight FAILED — Remediation Context
+
+          ### Dispatch inputs
+          | Input | Value |
+          |---|---|
+          | python_version | ``${{ inputs.python_version }}`` |
+          | cuda_version | ``${{ inputs.cuda_version }}`` |
+          | msvc_toolset | ``${{ inputs.msvc_toolset }}`` |
+          | verbose | ``${{ inputs.verbose }}`` |
+
+          ### First places to look
+          1. **MSVC toolset availability** — If the run failed at ``Probe and auto-select MSVC toolset``, the requested pin may not be installed on the ``windows-2022`` image. Re-dispatch with ``msvc_toolset=auto`` (recommended) to let the probe pick the newest compatible toolset.
+          2. **Runner image rotation** — Check https://github.com/actions/runner-images/issues/9701 for VC component removal history.
+          3. **Upstream context** — Segfault root cause: https://github.com/abetlen/llama-cpp-python/issues/1543
+
+          ### Debug env
+          - PATH entries: $((($env:PATH -split ';') | Select-Object -First 10) -join ' ; ')
+          - CONDA_PREFIX: $env:CONDA_PREFIX
+          - Full env snapshot (first 40 entries, filtered): $(Get-ChildItem env: | Where-Object { $_.Name -match '^(CUDA|VS|PATH|CONDA|GITHUB)' } | Select-Object Name,Value | Format-Table | Out-String)
+          "@
+          $hint | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Host $hint
+
   lint-workflow:
     runs-on: ubuntu-latest
     timeout-minutes: 5
