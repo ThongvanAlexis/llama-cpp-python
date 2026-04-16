@@ -35,20 +35,20 @@ Plans:
 - [x] 01-03-PLAN.md — Forensics summary (green/red paths) + DOC-04 inline comments (DOC-04) [human-verify checkpoint]
 
 ### Phase 2: Build & Cache
-**Goal**: The build step, invoked after Phase 1's green toolchain, produces a correctly-tagged `cp311-cp311-win_amd64.whl` under 400 MB with a reproducible version string (embeds llama.cpp submodule SHA), while three caches (sccache, CUDA installer zip, mamba pkgs) are keyed to invalidate on source/toolchain change and save on failure so the fail-fix-retry loop doesn't re-pay cold costs.
+**Goal**: The build step, invoked after Phase 1's green toolchain, produces a correctly-tagged `cp311-cp311-win_amd64.whl` under 400 MB with a reproducible version string (embeds llama.cpp submodule SHA), while caches (sccache, mamba pkgs) are keyed to invalidate on source/toolchain change and save on failure so the fail-fix-retry loop doesn't re-pay cold costs.
 **Depends on**: Phase 1
 **Requirements**: BLD-01, BLD-02, BLD-03, BLD-04, BLD-05, BLD-06, BLD-07, BLD-08, BLD-09, BLD-10, BLD-11, BLD-12, BLD-13
 **Success Criteria** (what must be TRUE):
   1. A green build run produces exactly one `dist/llama_cpp_python-<ver>+cu126.ll<sha>-cp311-cp311-win_amd64.whl` where `<sha>` is the llama.cpp submodule short SHA; a regex guard on the wheel filename fails the job on any drift to `abi3`, `none-any`, or a wrong Python tag.
   2. The produced wheel is strictly under 400 MB (CI asserts `wheel.size < 400 MiB` and fails if exceeded); the wheel is uploaded as an Actions artifact consumable by downstream jobs.
   3. On a rebuild after a YAML edit (no source change), `sccache --show-stats` reports a cache hit rate above 30% and the build step wall time is meaningfully shorter than the cold run, proving `/Z7` + `CMP0141=NEW` took effect.
-  4. After a deliberately-failing build (e.g., introduced compile error), every cache (sccache, `cudainstaller.zip`, mamba pkgs dir, VS CUDA integration) is still saved under its key and restores cleanly on the next attempt.
+  4. After a deliberately-failing build (e.g., introduced compile error), every cache (sccache, mamba pkgs dir) is still saved under its key and restores cleanly on the next attempt.
   5. Each job step has an explicit `timeout-minutes` so no single hung step can eat the entire 6-hour runner budget.
-**Plans**: TBD (1-3 plans; likely 1-2 — could split build-body vs cache-wiring)
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: TBD — wire `python -m build`, CMake args, sccache `/Z7` enforcement, wheel-tag + size assertions, version-with-SHA, artifact upload, per-step timeouts
-- [ ] 02-02: TBD (optional split) — three-tier `actions/cache@v4` pattern with `if: always()` save-on-failure for CUDA installer zip / mamba pkgs / VS integration
+- [ ] 02-01-PLAN.md — Build body + cache wiring: vcvarsall activation, CMAKE_ARGS (Ninja, sccache, /Z7, CUDA archs), version override with SHA, mamba split cache with save-on-failure, sccache setup, per-step timeouts (BLD-01..09, BLD-12)
+- [ ] 02-02-PLAN.md — Post-build assertions + artifact upload + dispatch verification: wheel tag regex guard, size check, upload-artifact, end-to-end dispatch [human-verify checkpoint] (BLD-10, BLD-11, BLD-13)
 
 ### Phase 3: Smoke Test (Publish Gate)
 **Goal**: A separate `smoke-test` job on a fresh `windows-2022` runner, sparse-checked-out to exclude `llama_cpp/` source, installs the built wheel into a clean venv and proves it loads a 27 KB GGUF fixture and generates 2 tokens without crashing; the publish job declares `needs: [build, smoke-test]` so a red smoke test is structurally incapable of reaching gh-pages.
@@ -89,7 +89,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Scaffold & Toolchain Pinning | 3/3 | Complete | 2026-04-16 |
-| 2. Build & Cache | 0/TBD | Not started | - |
+| 2. Build & Cache | 0/2 | Planned | - |
 | 3. Smoke Test (Publish Gate) | 0/TBD | Not started | - |
 | 4. Publish & Consumer UX | 0/TBD | Not started | - |
 
@@ -105,3 +105,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 *Roadmap created: 2026-04-15*
 *Phase 1 planned: 2026-04-15 (3 plans, wave-sequential)*
 *Updated 2026-04-15 — OQ1 resolution: default cuda_version 12.4.1 → 12.6.3, msvc_toolset 14.39 → 14.40 (VC.14.39.17.9 component retired from windows-2022 image per actions/runner-images#9701)*
+*Phase 2 planned: 2026-04-16 (2 plans, wave-sequential — build body + cache in wave 1, assertions + dispatch verification in wave 2)*
