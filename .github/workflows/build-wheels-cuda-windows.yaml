@@ -238,15 +238,20 @@ jobs:
           auto-activate-base: false
 
       - name: Install CUDA toolkit via mamba
-        shell: bash -el {0}
+        shell: pwsh
         timeout-minutes: 15
         run: |
-          set -euo pipefail
-          CUDA_VERSION='${{ inputs.cuda_version }}'
-          CUDA_CHANNEL="nvidia/label/cuda-${CUDA_VERSION}"
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $cudaVersion = '${{ inputs.cuda_version }}'
+          $cudaChannel = "nvidia/label/cuda-$cudaVersion"
           # TC-05: single install path. No Jimver full-installer.
           # --channel-priority strict prevents conda-forge from pulling a mismatched cudart.
-          mamba install -y --channel-priority strict --override-channels --channel "${CUDA_CHANNEL}" "cuda-toolkit=${CUDA_VERSION}"
+          # Using pwsh instead of bash: Git Bash on Windows corrupts channel arguments
+          # when passed through the conda/mamba .bat activation chain.
+          mamba install -y --channel-priority strict --override-channels --channel $cudaChannel "cuda-toolkit=$cudaVersion"
+          if ($LASTEXITCODE -ne 0) { throw "mamba install failed with exit code $LASTEXITCODE" }
 
       - name: 'Preflight: Assert MSVC _MSC_VER matches selected toolset and CUDA cap'
         id: assert-msvc
