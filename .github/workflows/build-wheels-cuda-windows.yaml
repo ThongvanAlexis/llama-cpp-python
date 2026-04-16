@@ -244,16 +244,12 @@ jobs:
           "msc_ver_cap=$mscVerCap" >> $env:GITHUB_OUTPUT
           "install_path=$installPath" >> $env:GITHUB_OUTPUT
 
-      - name: Activate MSVC ${{ steps.probe-msvc.outputs.selected_toolset }} toolset
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          # ilammy's `toolset:` input activates the specific MSVC toolset within whatever
-          # VS version is installed. No need to derive a vs-version range — ilammy wraps
-          # vcvarsall.bat -vcvars_ver=<toolset> which handles the mapping internally.
-          # The probe-msvc step has already verified the toolset exists on disk and is
-          # compatible with the chosen CUDA version.
-          toolset: ${{ steps.probe-msvc.outputs.selected_toolset }}
-          arch: amd64
+      # NOTE: ilammy/msvc-dev-cmd is NOT used here. Conda's activation hook also
+      # calls vcvarsall.bat, and the two vcvars calls together produce INCLUDE/LIB
+      # strings that exceed CMD's 8192-char line limit. Phase 1 preflight only needs
+      # cl.exe to verify _MSC_VER — we call it by full path from probe-msvc outputs.
+      # Phase 2 (build) will activate MSVC via cmake's VS generator or vcvarsall
+      # directly in a clean subprocess.
 
       - name: 'Preflight: Assert MSVC _MSC_VER matches selected toolset and CUDA cap'
         id: assert-msvc
@@ -266,6 +262,8 @@ jobs:
           # 1. Pin integrity: cl.exe _MSC_VER == expected value for selected toolset
           # 2. CUDA compatibility: cl.exe _MSC_VER <= CUDA cap
           $selectedToolset = '${{ steps.probe-msvc.outputs.selected_toolset }}'
+          $selectedFull = '${{ steps.probe-msvc.outputs.selected_full_version }}'
+          $installPath = '${{ steps.probe-msvc.outputs.install_path }}'
           $mscVerCap = [int]'${{ steps.probe-msvc.outputs.msc_ver_cap }}'
           $cudaVersion = '${{ inputs.cuda_version }}'
 
@@ -273,8 +271,13 @@ jobs:
           $parts = $selectedToolset -split '\.'
           $expectedMscVer = 1900 + [int]$parts[1]
 
+          # Call cl.exe by full path (no ilammy activation needed for preflight).
+          $clExe = Join-Path $installPath "VC\Tools\MSVC\$selectedFull\bin\HostX64\x64\cl.exe"
+          if (-not (Test-Path $clExe)) {
+            throw "cl.exe not found at $clExe — probe-msvc output may be stale"
+          }
           # cl.exe writes banner to stderr; redirect 2>&1.
-          $banner = (cl.exe 2>&1 | Out-String)
+          $banner = (& $clExe 2>&1 | Out-String)
           $match = [regex]::Match($banner, 'Version (\d+)\.(\d+)')
           if (-not $match.Success) { throw "Failed to parse cl.exe banner: $banner" }
           $clMajor = [int]$match.Groups[1].Value
