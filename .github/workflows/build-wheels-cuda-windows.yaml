@@ -122,7 +122,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-2022
-    timeout-minutes: 90
+    timeout-minutes: 210
     defaults:
       run:
         shell: pwsh
@@ -642,7 +642,7 @@ jobs:
       - name: 'Build: Activate MSVC and build wheel'
         id: build-wheel
         shell: pwsh
-        timeout-minutes: 60
+        timeout-minutes: 180
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
