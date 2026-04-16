@@ -634,9 +634,8 @@ jobs:
         timeout-minutes: 5
         with:
           variant: sccache
-          key: sccache-cuda-${{ inputs.cuda_version }}-${{ steps.probe-msvc.outputs.selected_toolset }}-${{ hashFiles('vendor/llama.cpp/CMakeLists.txt', 'vendor/llama.cpp/src/**') }}
-          restore-keys: |
-            sccache-cuda-${{ inputs.cuda_version }}-${{ steps.probe-msvc.outputs.selected_toolset }}-
+          key: sccache-cuda-${{ inputs.cuda_version }}-${{ steps.probe-msvc.outputs.selected_toolset }}
+          append-timestamp: false
           max-size: 500M
 
       - name: 'Build: Activate MSVC and build wheel'
