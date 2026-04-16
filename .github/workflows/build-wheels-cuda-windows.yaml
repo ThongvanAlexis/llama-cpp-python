@@ -557,7 +557,7 @@ jobs:
           | VS BuildCustomizations | ${{ steps.discover-vs.outputs.bc_path }} |
           | MSVC toolset | ${{ inputs.msvc_toolset }} (``_MSC_VER=${{ steps.assert-msvc.outputs.msc_ver }}``) |
           | nvcc version | ${{ steps.assert-nvcc.outputs.nvcc_version }} |
-          | CUDA path | $env:CUDA_PATH |
+          | CUDA path | $env:CONDA_PREFIX\Library |
           | Python | ${{ steps.assert-python.outputs.python_version }} at ${{ steps.assert-python.outputs.python_path }} |
           | llama.cpp SHA | ${{ steps.assert-submodule.outputs.llama_sha }} |
           | mamba version | $mambaVer |
