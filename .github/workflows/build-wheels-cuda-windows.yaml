@@ -729,17 +729,15 @@ jobs:
           $env:CMAKE_BUILD_PARALLEL_LEVEL = '1'
 
           # Override pyproject.toml's wheel.py-api="py3" to get cpXX tag (not py3-none).
-          # Fallback if empty string doesn't work:
-          #   Option 1: python -m build --wheel -C wheel.py-api=""
-          #   Option 2: $env:SKBUILD_WHEEL_PY_API = "cp$('${{ inputs.python_version }}' -replace '\.','')"
-          $env:SKBUILD_WHEEL_PY_API = ''
+          # SKBUILD_WHEEL_PY_API='' does NOT work (env var empty string ignored by scikit-build-core).
+          # Use -C config-setting instead, applied at build command below.
 
           Write-Host "CMAKE_ARGS: $env:CMAKE_ARGS"
           Write-Host "CMAKE_BUILD_PARALLEL_LEVEL: $env:CMAKE_BUILD_PARALLEL_LEVEL"
-          Write-Host "SKBUILD_WHEEL_PY_API: '$env:SKBUILD_WHEEL_PY_API'"
 
           # ── 5. Build the wheel (BLD-01) ──
-          python -m build --wheel
+          # -C wheel.py-api="" overrides pyproject.toml py-api="py3" → produces cpXX-cpXX tag
+          python -m build --wheel -C wheel.py-api=""
           if ($LASTEXITCODE -ne 0) { throw "python -m build --wheel failed with exit code $LASTEXITCODE" }
 
           # ── 6. Restore __init__.py (cleanup) ──
