@@ -10,7 +10,7 @@ This v1 delivers a GitHub Actions workflow that produces a runtime-verified Wind
 - Integer phases (1, 2, 3, 4): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Scaffold & Toolchain Pinning** - New Windows-only workflow file with MSVC 14.40 pinned (bumped from 14.39 after OQ1 resolution 2026-04-15) and CUDA toolkit unified behind one install path
+- [x] **Phase 1: Scaffold & Toolchain Pinning** - New Windows-only workflow file with MSVC auto-select from CUDA compat matrix and CUDA toolkit unified behind one install path (completed 2026-04-16)
 - [ ] **Phase 2: Build & Cache** - scikit-build-core produces a correctly-tagged, size-bounded wheel with three-tier save-on-failure caches
 - [ ] **Phase 3: Smoke Test (Publish Gate)** - Fresh-runner job installs the wheel and asserts `Llama(...)` runs without segfault; publish blocked if red
 - [ ] **Phase 4: Publish & Consumer UX** - PEP 503 index on gh-pages, release assets, post-publish probe, and README install docs
@@ -30,9 +30,9 @@ This v1 delivers a GitHub Actions workflow that produces a runtime-verified Wind
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Create workflow skeleton + operational lint-workflow job (WF-01, WF-02, WF-03, WF-04, TC-01, TC-10)
-- [ ] 01-02-PLAN.md — Populate preflight body: toolchain install + 5 named assertions + VS discovery (WF-05, TC-02..TC-09) [human-verify checkpoint]
-- [ ] 01-03-PLAN.md — Forensics summary (green/red paths) + DOC-04 inline comments (DOC-04) [human-verify checkpoint]
+- [x] 01-01-PLAN.md — Create workflow skeleton + operational lint-workflow job (WF-01, WF-02, WF-03, WF-04, TC-01, TC-10)
+- [x] 01-02-PLAN.md — Populate preflight body: toolchain install + 5 named assertions + VS discovery (WF-05, TC-02..TC-09) [human-verify checkpoint]
+- [x] 01-03-PLAN.md — Forensics summary (green/red paths) + DOC-04 inline comments (DOC-04) [human-verify checkpoint]
 
 ### Phase 2: Build & Cache
 **Goal**: The build step, invoked after Phase 1's green toolchain, produces a correctly-tagged `cp311-cp311-win_amd64.whl` under 400 MB with a reproducible version string (embeds llama.cpp submodule SHA), while three caches (sccache, CUDA installer zip, mamba pkgs) are keyed to invalidate on source/toolchain change and save on failure so the fail-fix-retry loop doesn't re-pay cold costs.
@@ -88,7 +88,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Scaffold & Toolchain Pinning | 2/3 | In Progress | - |
+| 1. Scaffold & Toolchain Pinning | 3/3 | Complete | 2026-04-16 |
 | 2. Build & Cache | 0/TBD | Not started | - |
 | 3. Smoke Test (Publish Gate) | 0/TBD | Not started | - |
 | 4. Publish & Consumer UX | 0/TBD | Not started | - |

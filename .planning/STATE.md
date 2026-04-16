@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-04-16T11:55:00.000Z"
-last_activity: 2026-04-16 — Plan 02 complete. MSVC auto-select from CUDA compat matrix, 13-step preflight job, both dispatch verifications passed (happy-path green + negative fast-fail). Moving to Plan 03 (forensics + DOC-04).
+stopped_at: Completed 01-03-PLAN.md — Phase 1 complete, all 3 plans done
+last_updated: "2026-04-16T16:00:00.000Z"
+last_activity: 2026-04-16 — Phase 1 complete. All 3 plans executed (scaffold + toolchain + forensics/DOC-04). 16/16 requirements verified. Workflow file feature-complete for Phase 1. Ready for /gsd:verify-work then Phase 2.
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 67
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State
@@ -21,40 +21,41 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Produce a Windows x64 CUDA wheel that actually works at runtime (loads a model, runs inference without segfault) and is installable via `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu126`.
-**Current focus:** Phase 1 — Scaffold & Toolchain Pinning (Plan 01 complete; Plan 02 next)
+**Current focus:** Phase 1 COMPLETE. Ready for /gsd:verify-work, then Phase 2 (Build & Cache).
 
 ## Current Position
 
-Phase: 1 of 4 (Scaffold & Toolchain Pinning)
-Plan: 3 of 3 in current phase (Plan 01 complete, Plan 02 complete — preflight job fully populated + dispatch-verified)
-Status: In progress
-Last activity: 2026-04-16 — Plan 02 complete. 13-step preflight with MSVC auto-select from CUDA compat matrix. Happy-path dispatch green (14.44/1944 for CUDA 12.6.3). Negative test fast-fails at probe (~5s). Moving to Plan 03 (forensics + DOC-04).
+Phase: 1 of 4 (Scaffold & Toolchain Pinning) -- COMPLETE
+Plan: 3 of 3 in current phase (all plans complete)
+Status: Phase 1 complete, awaiting verification
+Last activity: 2026-04-16 — Phase 1 complete. Plan 03 added forensics summary (11-property fingerprint table in Actions UI Summary tab) + DOC-04 inline comments at 4 locked sites. All 16 Phase 1 requirements verified (WF-01..05, TC-01..10, DOC-04). Workflow file feature-complete.
 
-Progress: [██████░░░░] 67%
+Progress: [██████████] 100% (Phase 1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: ~12h (skewed by Plan 02's 6-dispatch empirical discovery cycle)
-- Total execution time: ~24.1 hours
+- Total plans completed: 3
+- Average duration: ~9.3h (skewed by Plan 02's 6-dispatch empirical discovery cycle)
+- Total execution time: ~28.1 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Scaffold & Toolchain Pinning | 2 | ~24.1h | ~12h |
+| 1. Scaffold & Toolchain Pinning | 3/3 | ~28.1h | ~9.3h |
 | 2. Build & Cache | 0 | — | — |
 | 3. Smoke Test (Publish Gate) | 0 | — | — |
 | 4. Publish & Consumer UX | 0 | — | — |
 
 **Recent Trend:**
-- Last 5 plans: P01 (2 min), P02 (~24h multi-session)
-- Trend: Plan 02 was unusually long due to empirical discovery of runner constraints (6 dispatches). Plan 03 should be faster (docs-only, no dispatch iteration expected).
+- Last 5 plans: P01 (2 min), P02 (~24h multi-session), P03 (~4h)
+- Trend: Plan 02 was unusually long due to empirical discovery of runner constraints (6 dispatches). Plan 03 was faster (forensics + docs with 1 dispatch iteration). Phase 1 complete.
 
 *Updated after each plan completion*
 | Phase 01-scaffold-toolchain-pinning P01 | 2 min | 1 tasks | 1 files |
 | Phase 01-scaffold-toolchain-pinning P02 | ~24h | 3 tasks | 1 files |
+| Phase 01-scaffold-toolchain-pinning P03 | ~4h | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Recent decisions affecting current work (from PROJECT.md + research):
 - [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Corrected CUDA _MSC_VER cap model. Original assumption: each CUDA minor version only supports one more MSVC minor (per-minor caps). Actual (from NVIDIA host_config.h): caps are per-generation — CUDA 12.2-12.3 cap at 1939 (`_MSC_VER >= 1940`), CUDA 12.4-12.9 cap at 1949 (`_MSC_VER >= 1950`). This means MSVC 14.44 (_MSC_VER=1944) works with ANY CUDA 12.4+. Sources: nerfstudio#3157, NVIDIA forums, Microsoft _MSC_VER docs. CUDA 12.7 was never released (NVIDIA skipped to 12.8).
 - [Phase 01-scaffold-toolchain-pinning 2026-04-16]: MSVC auto-select design adopted. msvc_toolset input defaults to 'auto' (was '14.40'). Probe step now: (1) looks up CUDA major.minor in a compat matrix to get _MSC_VER cap, (2) enumerates installed toolsets from disk, (3) picks newest compatible toolset automatically. Override mode (explicit pin) validates both installed AND compatible. Benefits: resilient to runner image rotation (adapts to whatever MSVC is available), eliminates need to track which specific MSVC version is on the runner. 3rd dispatch found 14.29 and 14.44 on runner; auto-select will pick 14.44 for CUDA 12.6 (1944 <= 1949).
 
+- [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Plan 03 forensics summary uses `$env:CONDA_PREFIX\Library` for CUDA path (not `$env:CUDA_PATH`) because mamba CUDA install sets CONDA_PREFIX but not CUDA_PATH. Phase 2 should use the same pattern for any CUDA path references.
+- [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Phase 1 COMPLETE. All 16 requirements verified (WF-01..05, TC-01..10, DOC-04). Workflow file has 15 preflight steps + 2-step lint-workflow job. Forensics summary renders 11-property table in Actions UI Summary tab on green; remediation hint block on red. DOC-04 comments at 4 locked sites with ban-grep-safe paraphrases.
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -97,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T11:55:00Z
-Stopped at: Completed 01-02-PLAN.md — SUMMARY written, STATE updated. Next: Plan 03 (forensics + DOC-04).
+Last session: 2026-04-16T16:00:00Z
+Stopped at: Completed 01-03-PLAN.md — Phase 1 complete (3/3 plans). SUMMARY written, STATE updated. Next: /gsd:verify-work for Phase 1, then Phase 2 planning.
 Resume file: None

@@ -71,7 +71,7 @@
 - [ ] **DOC-01**: README has an "Install (Windows CUDA)" section with the canonical command: `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu126`
 - [ ] **DOC-02**: README notes the minimum NVIDIA driver version (≥ 560.x for CUDA 12.6 per NVIDIA's driver-compat matrix; bumped from ≥ 551.61/CUDA 12.4 on 2026-04-15 after OQ1)
 - [ ] **DOC-03**: README notes the up-to-15-minute Fastly cache delay after a publish and suggests `pip install --no-cache-dir` when a fresh wheel isn't resolved
-- [ ] **DOC-04**: The workflow YAML contains inline comments explaining the MSVC 14.40 pin rationale (and the 14.39 → 14.40 bump history) and the `-allow-unsupported-compiler` ban (link to upstream #1543)
+- [x] **DOC-04**: The workflow YAML contains inline comments explaining the MSVC 14.40 pin rationale (and the 14.39 → 14.40 bump history) and the `-allow-unsupported-compiler` ban (link to upstream #1543)
 - [ ] **DOC-05**: Release notes (GitHub Release body) record the llama.cpp submodule SHA at build time
 
 ## v2 Requirements
@@ -173,7 +173,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DOC-01 | Phase 4 | Pending |
 | DOC-02 | Phase 4 | Pending |
 | DOC-03 | Phase 4 | Pending |
-| DOC-04 | Phase 1 | Pending |
+| DOC-04 | Phase 1 | Complete |
 | DOC-05 | Phase 4 | Pending |
 
 **Coverage:**
