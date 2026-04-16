@@ -122,7 +122,7 @@ permissions:
 jobs:
   preflight:
     runs-on: windows-2022
-    timeout-minutes: 20
+    timeout-minutes: 90
     defaults:
       run:
         shell: pwsh
@@ -267,6 +267,7 @@ jobs:
 
       - name: Enable Windows long paths
         shell: pwsh
+        timeout-minutes: 2
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
@@ -287,18 +288,21 @@ jobs:
 
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
+        timeout-minutes: 5
         with:
           submodules: recursive   # WF-05 — pulls vendor/llama.cpp and its own submodules (ggml)
           fetch-depth: 1
 
       - name: Setup Python
         uses: actions/setup-python@v5
+        timeout-minutes: 5
         with:
           python-version: ${{ inputs.python_version }}
           cache: 'pip'
 
       - name: Setup mamba
         uses: conda-incubator/setup-miniconda@v3.1.0
+        timeout-minutes: 10
         with:
           activate-environment: llamacpp
           python-version: ${{ inputs.python_version }}
@@ -333,6 +337,7 @@ jobs:
       - name: 'Preflight: Assert MSVC _MSC_VER matches selected toolset and CUDA cap'
         id: assert-msvc
         shell: pwsh
+        timeout-minutes: 2
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
@@ -396,6 +401,7 @@ jobs:
       - name: 'Preflight: Assert nvcc matches cuda_version'
         id: assert-nvcc
         shell: pwsh
+        timeout-minutes: 2
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
@@ -424,6 +430,7 @@ jobs:
       - name: 'Preflight: Assert single CUDA install path'
         id: assert-cuda-single-path
         shell: pwsh
+        timeout-minutes: 2
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
@@ -458,6 +465,7 @@ jobs:
       - name: 'Preflight: Assert llama.cpp submodule populated'
         id: assert-submodule
         shell: pwsh
+        timeout-minutes: 2
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
@@ -479,6 +487,7 @@ jobs:
       - name: 'Preflight: Assert Python version'
         id: assert-python
         shell: pwsh
+        timeout-minutes: 2
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
@@ -506,6 +515,7 @@ jobs:
       - name: 'Preflight: Discover VS 2022 BuildCustomizations path'
         id: discover-vs
         shell: pwsh
+        timeout-minutes: 2
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
@@ -532,9 +542,99 @@ jobs:
           "vs_install_path=$vsRoot" >> $env:GITHUB_OUTPUT
           "bc_path=$bcPath" >> $env:GITHUB_OUTPUT
 
+      # ── Phase 2: Build body ──────────────────────────────────────────────
+      # Steps below produce the CUDA wheel. They run after the Phase 1
+      # preflight assertions have all passed.
+
+      - name: 'Build: Copy VS BuildCustomizations for CUDA integration'
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # BLD-07: Copy CUDA .props/.targets/.xml files into the VS BuildCustomizations
+          # directory so MSBuild/Ninja can find them. This takes < 5 seconds;
+          # not cached per CONTEXT.md — just redo each run.
+          $src = Join-Path $env:CONDA_PREFIX 'Library\extras\visual_studio_integration\MSBuildExtensions\*'
+          $dst = '${{ steps.discover-vs.outputs.bc_path }}'
+          Copy-Item -Path $src -Destination $dst -Force
+          $copied = @(Get-ChildItem (Join-Path $dst '*.props'))
+          if ($copied.Count -eq 0) {
+            $msg = "No .props files found in $dst after copy.`n" +
+                   "Source: $src`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - Verify CUDA toolkit installed via mamba (check 'Install CUDA toolkit via mamba' step)`n" +
+                   "  - Verify CONDA_PREFIX\Library\extras\visual_studio_integration\MSBuildExtensions\ exists`n" +
+                   "  - Check conda-incubator/setup-miniconda activate-environment is set"
+            throw $msg
+          }
+          Write-Host "OK: copied $($copied.Count) .props file(s) to $dst"
+
+      - name: 'Build: Restore mamba pkgs cache'
+        id: cache-mamba-restore
+        uses: actions/cache/restore@v4
+        timeout-minutes: 5
+        with:
+          path: ${{ env.MAMBA_ROOT_PREFIX }}/pkgs
+          key: mamba-cuda-${{ inputs.cuda_version }}-${{ runner.os }}-${{ hashFiles('.github/workflows/build-wheels-cuda-windows.yaml') }}
+          restore-keys: |
+            mamba-cuda-${{ inputs.cuda_version }}-${{ runner.os }}-
+
+      - name: 'Build: Install build dependencies'
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # BLD-01 partial: install PEP 517 frontend + Ninja generator.
+          # scikit-build-core comes from pyproject.toml build-requires (not installed here).
+          python -m pip install --upgrade pip build wheel
+          if ($LASTEXITCODE -ne 0) { throw "pip install build deps failed (exit $LASTEXITCODE)" }
+          python -m pip install ninja
+          if ($LASTEXITCODE -ne 0) { throw "pip install ninja failed (exit $LASTEXITCODE)" }
+
+          # Verify
+          $buildVer = python -m build --version
+          Write-Host "python -m build version: $buildVer"
+          $ninjaVer = ninja --version
+          Write-Host "ninja version: $ninjaVer"
+
+      - name: 'Build: Setup sccache'
+        uses: hendrikmuhs/ccache-action@v1.2
+        timeout-minutes: 5
+        with:
+          variant: sccache
+          key: sccache-cuda-${{ inputs.cuda_version }}-${{ steps.probe-msvc.outputs.selected_toolset }}-${{ hashFiles('vendor/llama.cpp/CMakeLists.txt', 'vendor/llama.cpp/src/**') }}
+          restore-keys: |
+            sccache-cuda-${{ inputs.cuda_version }}-${{ steps.probe-msvc.outputs.selected_toolset }}-
+          max-size: 500M
+
+      # ── Build step inserted by Task 2 goes here ──
+
+      - name: 'Build: Save mamba pkgs cache'
+        if: always()
+        uses: actions/cache/save@v4
+        timeout-minutes: 5
+        with:
+          path: ${{ env.MAMBA_ROOT_PREFIX }}/pkgs
+          key: ${{ steps.cache-mamba-restore.outputs.cache-primary-key }}
+
+      - name: 'Build: Show sccache stats'
+        if: always()
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          sccache --show-stats
+
       - name: 'Preflight: Emit forensics summary'
         if: success()
         shell: pwsh
+        timeout-minutes: 2
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
@@ -580,6 +680,7 @@ jobs:
       - name: 'Preflight: Emit remediation hint on failure'
         if: failure()
         shell: pwsh
+        timeout-minutes: 2
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'SilentlyContinue'   # do NOT fail the summary step itself
