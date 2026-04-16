@@ -17,7 +17,7 @@
 
 - [x] **TC-01**: Runner is pinned to `windows-2022` explicitly (never `windows-latest`)
 - [x] **TC-02**: MSVC toolset is auto-selected from runner by enumerating `VC\Tools\MSVC\*` directories, looking up the CUDA _MSC_VER cap from a compatibility matrix (host_config.h), and picking the newest compatible toolset. msvc_toolset input defaults to 'auto'; override mode validates both installed AND CUDA-compatible. Originally spec'd as vs_installer install (abandoned 2026-04-16); then enumerate+pin (abandoned 2026-04-16); now auto-select from compat matrix (2026-04-16).
-- [x] **TC-03**: MSVC toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: ${{ steps.probe-msvc.outputs.selected_toolset }}` (auto-selected or override-validated value; ilammy wraps `vcvarsall.bat -vcvars_ver=<toolset>` internally)
+- [x] **TC-03**: MSVC toolset is verified via cl.exe called by full path (`$installPath\VC\Tools\MSVC\$selectedFull\bin\HostX64\x64\cl.exe`) — `ilammy/msvc-dev-cmd` was dropped because conda activation + ilammy both call vcvarsall.bat, overflowing CMD's 8192-char INCLUDE/LIB limit. Phase 2 build will use cmake's VS generator or a clean vcvarsall subprocess for full VS environment activation
 - [x] **TC-04**: Preflight step asserts two things: (1) pin integrity — cl.exe _MSC_VER matches expected value for selected toolset, (2) CUDA compatibility — _MSC_VER ≤ cap from compat matrix. Both checks use probe-msvc step outputs, not raw input.
 - [x] **TC-05**: CUDA toolkit is installed via a single path (mamba `cuda-toolkit`); no parallel Jimver full-installer install
 - [x] **TC-06**: Preflight step asserts `nvcc --version` matches the requested `cuda_version` input

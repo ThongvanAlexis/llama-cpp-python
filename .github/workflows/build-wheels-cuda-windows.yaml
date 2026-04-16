@@ -364,11 +364,11 @@ jobs:
           # cl.exe reports '19.44'; _MSC_VER is clMajor*100 + clMinor (e.g. 19.44 -> 1944).
           $actualMscVer = $clMajor * 100 + $clMinor
 
-          # Check 1: Pin integrity — did ilammy activate the exact toolset we asked for?
+          # Check 1: Pin integrity — does cl.exe match the toolset probe-msvc selected?
           if ($actualMscVer -ne $expectedMscVer) {
             $msg = "Pin integrity failed: expected _MSC_VER=$expectedMscVer for toolset $selectedToolset, got $actualMscVer.`n" +
                    "`n" +
-                   "This means ilammy/msvc-dev-cmd did NOT activate the requested toolset correctly.`n" +
+                   "cl.exe at the selected toolset path reports a different _MSC_VER than expected.`n" +
                    "The probe-msvc step selected toolset $selectedToolset, but cl.exe reports a different version.`n" +
                    "`n" +
                    "REMEDIATION:`n" +
