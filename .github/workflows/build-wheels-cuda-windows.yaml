@@ -1,8 +1,79 @@
-# Build Wheels (CUDA Windows) — Phase 1 scaffold.
-# Windows x64 CUDA wheel build workflow for llama-cpp-python.
-# Phase 1 scaffold — see .planning/phases/01-scaffold-toolchain-pinning/.
-# Full DOC-04 preamble (fork rationale, _MSC_VER wall, escape hatch, references)
-# lands in Plan 03; this header is a placeholder so the file parses today.
+# =============================================================================
+# Windows x64 CUDA wheel builder for llama-cpp-python (fork)
+# =============================================================================
+#
+# WHY THIS FORK EXISTS
+#   Upstream abetlen/llama-cpp-python disabled Windows CUDA CI in July 2025
+#   (commit 98fda8c) after chronic VS/nvcc incompatibilities:
+#     - abetlen/llama-cpp-python#1543  (root cause: the compiler-bypass
+#                                       workaround silences nvcc's _MSC_VER
+#                                       check, producing wheels that compile
+#                                       but SEGFAULT at the first Llama(...)
+#                                       call at runtime — see the ban-grep
+#                                       step in lint-workflow for the exact
+#                                       flag string we refuse to ship)
+#     - abetlen/llama-cpp-python#1551, #1838, #1894  (same class of failures)
+#     - abetlen/llama-cpp-python#2136  (maintainer status — Quansight funding
+#                                       offer unanswered, fork is the pragmatic path)
+#
+# THE _MSC_VER / nvcc COMPATIBILITY WALL
+#   nvcc's host_config.h rejects _MSC_VER values above a per-generation cap:
+#     CUDA 12.2–12.3: _MSC_VER >= 1940 rejected  (cap = 1939)
+#     CUDA 12.4–12.9: _MSC_VER >= 1950 rejected  (cap = 1949, any VS 2022)
+#   GitHub's windows-2022 image ships multiple MSVC toolsets on disk
+#   (currently 14.29 + 14.44). The probe-msvc step auto-selects the newest
+#   toolset whose _MSC_VER is within the cap for the requested CUDA version.
+#   Upstream's workaround was the banned -DCMAKE_CUDA_FLAGS setting (see
+#   lint-workflow ban-grep for the literal) which silences the compile error
+#   but the produced binaries segfault at runtime. See #1543 — reporter
+#   confirmed crash on the very first call to `Llama(model_path=...)`.
+#
+# WHAT THIS WORKFLOW DOES
+#   1. Auto-selects the newest compatible MSVC toolset from disk via the
+#      probe-msvc step (runs FIRST for instant fail on bad inputs). The step
+#      enumerates `VC\Tools\MSVC\*` directories (~0ms), looks up the CUDA
+#      _MSC_VER cap from a compatibility matrix derived from host_config.h,
+#      and picks the newest toolset where _MSC_VER <= cap. Override with an
+#      explicit `msvc_toolset` dispatch input for debugging.
+#   2. Does NOT use ilammy/msvc-dev-cmd — conda's activation hook also calls
+#      vcvarsall.bat, and two vcvars calls overflow CMD's 8192-char INCLUDE/LIB
+#      limit. Preflight calls cl.exe by full path for _MSC_VER verification.
+#      Phase 2 (build) will use cmake's VS generator or a clean vcvarsall
+#      subprocess.
+#   3. Installs CUDA via mamba (single install path — no parallel Jimver
+#      full-installer; see Jimver/cuda-toolkit#382 for the hang on
+#      windows-2022 + CUDA 12.5+). Mamba steps use `shell: pwsh` because
+#      Git Bash corrupts conda channel arguments on Windows.
+#   4. Preflights the toolchain with named hard-fail assertions (no
+#      warn-and-continue anywhere). Assertion steps emit remediation hints
+#      to $GITHUB_STEP_SUMMARY on red; forensics table on green.
+#   5. Bans the compiler-bypass workaround via a parallel grep self-check on
+#      ubuntu-latest (lint-workflow job — that job's grep command is the
+#      ONLY place in this file where the banned flag appears literally).
+#
+# ROADMAP
+#   Phase 1 (this file, current):     Scaffold + toolchain pinning + preflight
+#   Phase 2 (future, same file):      Build job (scikit-build-core -> wheel)
+#   Phase 3 (future, same file):      Smoke-test publish gate
+#   Phase 4 (future, same file):      PEP 503 index publish on gh-pages
+#   See .planning/ROADMAP.md for details.
+#
+# ESCAPE HATCH: msvc_toolset DISPATCH INPUT
+#   The default is `auto` — probe-msvc picks the newest compatible toolset.
+#   If auto-select produces unexpected results after a runner image rotation,
+#   override with an explicit pin (e.g. `msvc_toolset=14.44`). DO NOT
+#   re-enable the compiler-bypass workaround that the lint-workflow job bans.
+#   The _MSC_VER cap is computed FROM the CUDA compatibility matrix, so the
+#   toolset choice and cap are always consistent.
+#
+# AUTHORITATIVE REFERENCES
+#   - Microsoft's MSVC 14.40 devblog (toolset<->_MSC_VER formula):
+#       https://devblogs.microsoft.com/cppblog/msvc-toolset-minor-version-number-14-40-in-vs-2022-v17-10/
+#   - actions/runner-images#9701 (VC component removals, May 2024):
+#       https://github.com/actions/runner-images/issues/9701
+#   - Upstream root cause:
+#       https://github.com/abetlen/llama-cpp-python/issues/1543
+# =============================================================================
 
 name: Build Wheels (CUDA Windows)
 
@@ -23,6 +94,15 @@ on:
         default: '12.6.3'
         options:
           - '12.6.3'
+      # msvc_toolset: defaults to 'auto', which lets the probe-msvc step pick the
+      # newest installed MSVC toolset whose _MSC_VER is within the CUDA compatibility
+      # cap (derived from nvcc's host_config.h). Override with an explicit pin
+      # (e.g. 14.44) only for debugging. nvcc rejects _MSC_VER above the cap unless
+      # the caller passes the compiler-bypass workaround banned by the lint-workflow
+      # job (see the ban-grep step in that job for why — the produced wheels segfault
+      # at runtime; upstream #1543). Raise the explicit pin ONLY when auto-select
+      # produces unexpected results after a runner image rotation; the probe step
+      # already validates both installed AND compatible.
       msvc_toolset:
         description: 'MSVC toolset pin (auto = pick newest compatible with cuda_version). Override with MAJOR.MINOR (e.g. 14.44) for debugging only.'
         type: string
@@ -240,12 +320,15 @@ jobs:
           mamba install -y --channel-priority strict --override-channels --channel $cudaChannel "cuda-toolkit=$cudaVersion"
           if ($LASTEXITCODE -ne 0) { throw "mamba install failed with exit code $LASTEXITCODE" }
 
-      # NOTE: ilammy/msvc-dev-cmd is NOT used here. Conda's activation hook also
-      # calls vcvarsall.bat, and the two vcvars calls together produce INCLUDE/LIB
-      # strings that exceed CMD's 8192-char line limit. Phase 1 preflight only needs
-      # cl.exe to verify _MSC_VER — we call it by full path from probe-msvc outputs.
-      # Phase 2 (build) will activate MSVC via cmake's VS generator or vcvarsall
-      # directly in a clean subprocess.
+      # NOTE: ilammy/msvc-dev-cmd is NOT used here (dropped in Plan 02 after
+      # discovering the vcvarsall overflow). Conda's activation hook calls
+      # vcvarsall.bat internally; a second vcvars call (from ilammy) overflows
+      # CMD's 8192-char INCLUDE/LIB environment variable limit. Phase 1 preflight
+      # calls cl.exe by full path from probe-msvc outputs to verify _MSC_VER —
+      # no VS environment activation needed. Phase 2 (build) will activate MSVC
+      # via cmake's "Visual Studio 17 2022" generator or a clean vcvarsall
+      # subprocess (never ilammy). See upstream #1543 for what happens when the
+      # _MSC_VER verification is skipped entirely.
 
       - name: 'Preflight: Assert MSVC _MSC_VER matches selected toolset and CUDA cap'
         id: assert-msvc
@@ -525,6 +608,21 @@ jobs:
           $hint | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           Write-Host $hint
 
+  # lint-workflow runs on ubuntu-latest in parallel with preflight (no `needs:`).
+  # Two cheap static checks:
+  #   1. Ban-grep: scoped to THIS FILE ONLY. This job's grep command literal is
+  #      the ONE and ONLY place in this workflow where the banned CMake flag is
+  #      permitted to appear (substring-matched by `grep -E` with character-class
+  #      escaping to avoid self-match). Upstream's build-wheels-cuda.yaml
+  #      legitimately contains that flag (reference docstring); we do not grep it.
+  #      DO NOT widen scope to repo-wide without coordinating with CMakeLists.txt /
+  #      pyproject.toml owners (Phase 2 territory). If this comment block ever
+  #      grows a literal copy of the banned flag, the ban-grep step will self-fail
+  #      on the next dispatch.
+  #   2. actionlint: catches ${{ }} expression typos (e.g. `inputs.pyhton_version`)
+  #      that would otherwise only surface at dispatch time. CONTEXT.md deferred
+  #      a standalone actionlint workflow to v2 AUT-*; including it as one extra
+  #      step here is near-free and catches a class of bugs ban-grep cannot.
   lint-workflow:
     runs-on: ubuntu-latest
     timeout-minutes: 5
