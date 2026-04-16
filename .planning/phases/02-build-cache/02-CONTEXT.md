@@ -85,7 +85,7 @@ The build step, invoked after Phase 1's green toolchain preflight, produces a co
 - Hard-fail with remediation hints on any assertion failure (Phase 1 pattern)
 
 ### Integration Points
-- Build steps append to the existing `preflight` job in the workflow YAML (or a new `build` job that `needs: [preflight]`)
+- Build steps are in the `build` job in the workflow YAML (renamed from `preflight` during Phase 2 execution — the job now contains both toolchain preflight assertions AND build steps)
 - probe-msvc outputs consumed by build step for vcvarsall path
 - assert-submodule outputs consumed for version SHA embedding
 - Build produces wheel artifact that Phase 3 (smoke-test) will download

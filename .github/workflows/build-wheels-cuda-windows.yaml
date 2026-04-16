@@ -120,7 +120,7 @@ permissions:
   contents: read
 
 jobs:
-  preflight:
+  build:
     runs-on: windows-2022
     timeout-minutes: 90
     defaults:
@@ -546,28 +546,55 @@ jobs:
       # Steps below produce the CUDA wheel. They run after the Phase 1
       # preflight assertions have all passed.
 
-      - name: 'Build: Copy VS BuildCustomizations for CUDA integration'
+      - name: 'Build: Download and install VS BuildCustomizations for CUDA integration'
         shell: pwsh
-        timeout-minutes: 2
+        timeout-minutes: 5
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
 
-          # BLD-07: Copy CUDA .props/.targets/.xml files into the VS BuildCustomizations
-          # directory so MSBuild/Ninja can find them. This takes < 5 seconds;
-          # not cached per CONTEXT.md — just redo each run.
-          $src = Join-Path $env:CONDA_PREFIX 'Library\extras\visual_studio_integration\MSBuildExtensions\*'
+          # BLD-07: mamba's cuda-toolkit package does NOT ship the VS integration
+          # files (visual_studio_integration/MSBuildExtensions). These only come
+          # from the NVIDIA CUDA installer .exe. Download it from Jimver's link
+          # table, extract just the MSBuildExtensions with 7-Zip, and copy into
+          # the VS BuildCustomizations directory.
+          # Not cached per CONTEXT.md — just redo each run (download ~10s, extract ~2s).
+
+          $cudaVersion = '${{ inputs.cuda_version }}'
+          # Jimver link table uses base version (12.1.1 -> 12.1.0 mapping not needed for 12.6.3)
+          $links = (Invoke-RestMethod 'https://raw.githubusercontent.com/Jimver/cuda-toolkit/master/src/links/windows-links.ts').Trim().Split().Where({$_ -ne ''})
+          $found = $false
+          for ($i = $q = 0; $i -lt $links.Count -and $q -lt 2; $i++) {
+            if ($links[$i] -eq "'$cudaVersion',") { $q++ }
+          }
+          if ($q -lt 2) {
+            throw "Could not find CUDA $cudaVersion in Jimver windows-links.ts.`n" +
+                  "REMEDIATION: Check https://github.com/Jimver/cuda-toolkit/blob/master/src/links/windows-links.ts for available versions"
+          }
+          $url = $links[$i].Trim("'")
+          Write-Host "Downloading CUDA installer for VS integration from: $url"
+          Invoke-RestMethod $url -OutFile 'cudainstaller.zip'
+
+          # Extract only MSBuildExtensions (CUDA.props, CUDA.targets, etc.)
+          & 'C:\Program Files\7-Zip\7z.exe' e cudainstaller.zip -oMSBuildExtensions -r *\MSBuildExtensions\* > $null
+          if ($LASTEXITCODE -ne 0) { throw "7z extraction failed with exit code $LASTEXITCODE" }
+          Remove-Item 'cudainstaller.zip'
+
+          # Copy into VS BuildCustomizations directory
+          $src = (Get-Item '.\MSBuildExtensions').FullName + '\*'
           $dst = '${{ steps.discover-vs.outputs.bc_path }}'
           Copy-Item -Path $src -Destination $dst -Force
+          Remove-Item -Recurse -Force '.\MSBuildExtensions'
+
           $copied = @(Get-ChildItem (Join-Path $dst '*.props'))
           if ($copied.Count -eq 0) {
             $msg = "No .props files found in $dst after copy.`n" +
-                   "Source: $src`n" +
+                   "Source: CUDA installer for version $cudaVersion`n" +
                    "`n" +
                    "REMEDIATION:`n" +
-                   "  - Verify CUDA toolkit installed via mamba (check 'Install CUDA toolkit via mamba' step)`n" +
-                   "  - Verify CONDA_PREFIX\Library\extras\visual_studio_integration\MSBuildExtensions\ exists`n" +
-                   "  - Check conda-incubator/setup-miniconda activate-environment is set"
+                   "  - Check Jimver/cuda-toolkit windows-links.ts has this CUDA version`n" +
+                   "  - Verify 7-Zip extracted MSBuildExtensions successfully`n" +
+                   "  - Check discover-vs step found correct BuildCustomizations path"
             throw $msg
           }
           Write-Host "OK: copied $($copied.Count) .props file(s) to $dst"

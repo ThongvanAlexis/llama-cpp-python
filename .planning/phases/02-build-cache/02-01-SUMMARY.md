@@ -7,7 +7,7 @@ tags: [github-actions, ci, workflow, cuda, cmake, ninja, sccache, mamba, vcvarsa
 # Dependency graph
 requires:
   - phase: 01-scaffold-toolchain-pinning
-    provides: "Populated preflight job body (01-02/01-03): 15 named steps with step outputs (probe-msvc, assert-submodule, discover-vs) for build step consumption, forensics summary + remediation hint as terminal steps"
+    provides: "Populated build job body (01-02/01-03, renamed from preflight): 15 named steps with step outputs (probe-msvc, assert-submodule, discover-vs) for build step consumption, forensics summary + remediation hint as terminal steps"
 provides:
   - "Build body steps in .github/workflows/build-wheels-cuda-windows.yaml: VS BuildCustomizations copy, mamba cache restore, pip install build deps, sccache setup, vcvarsall+build (core build step), mamba cache save, sccache stats"
   - "Core build step: vcvarsall activation from probe-msvc outputs (no ilammy), CMAKE_ARGS with Ninja/CUDA/sccache/CMP0141, version override via __init__.py rewrite with PEP 440 local segment, python -m build --wheel"
@@ -73,7 +73,7 @@ completed: 2026-04-16
 
 ## Accomplishments
 
-- Added 7 new build steps to the preflight job, inserted before the forensics summary: VS BuildCustomizations copy, mamba cache restore, pip install build deps, sccache setup, core build step (vcvarsall + cmake + ninja + wheel), mamba cache save (if: always()), sccache stats (if: always()).
+- Added 7 new build steps to the build job (renamed from preflight), inserted before the forensics summary: VS BuildCustomizations copy, mamba cache restore, pip install build deps, sccache setup, core build step (vcvarsall + cmake + ninja + wheel), mamba cache save (if: always()), sccache stats (if: always()).
 - Core build step activates MSVC via vcvarsall.bat in a clean pwsh subprocess using probe-msvc outputs (install_path + selected_full_version), constructs CMAKE_ARGS with Ninja generator, CUDA on, 5 architecture targets (80/86/89/90-real + 90-virtual), sccache launchers for C/CXX/CUDA, CMP0141/Z7 for sccache compatibility, CPU ISA disables (AVX2/FMA/F16C off), and builds the wheel with `python -m build --wheel`.
 - Version string embeds llama.cpp submodule SHA in PEP 440 local segment format (`0.3.20+cu126.ll<sha12>`) via __init__.py rewrite before build, then git checkout to restore.
 - Split mamba pkgs cache (actions/cache/restore@v4 + actions/cache/save@v4) with `if: always()` on save for fail-fix-retry loop affordability.

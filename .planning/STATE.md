@@ -83,6 +83,9 @@ Recent decisions affecting current work (from PROJECT.md + research):
 - [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Plan 03 forensics summary uses `$env:CONDA_PREFIX\Library` for CUDA path (not `$env:CUDA_PATH`) because mamba CUDA install sets CONDA_PREFIX but not CUDA_PATH. Phase 2 should use the same pattern for any CUDA path references.
 - [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Phase 1 COMPLETE. All 16 requirements verified (WF-01..05, TC-01..10, DOC-04). Workflow file has 15 preflight steps + 2-step lint-workflow job. Forensics summary renders 11-property table in Actions UI Summary tab on green; remediation hint block on red. DOC-04 comments at 4 locked sites with ban-grep-safe paraphrases.
 
+- [Phase 02-build-cache 2026-04-16]: Job renamed `preflight` → `build` in workflow YAML. The job now contains both toolchain preflight assertions AND build steps, so "preflight" was misleading. All future references should use job ID `build` (not `preflight`).
+
+- [Phase 02-build-cache 2026-04-16]: VS BuildCustomizations (CUDA .props/.targets) come from Jimver CUDA installer download + 7-Zip extraction, NOT from mamba's cuda-toolkit package (mamba does not ship visual_studio_integration files). Matches the old build-wheels-cuda.yaml approach. Not cached per CONTEXT.md — download+extract ~12s per run.
 - [Phase 02-build-cache 2026-04-16]: vcvarsall activation INLINE in build step (not dedicated step) -- env vars don't persist across GH Actions steps. Uses probe-msvc outputs (install_path + selected_full_version) to locate vcvarsall.bat.
 - [Phase 02-build-cache 2026-04-16]: 12-char llama.cpp SHA re-derived via `git -C vendor/llama.cpp rev-parse HEAD` (assert-submodule only outputs 7 chars). Collision-safe for large repo.
 - [Phase 02-build-cache 2026-04-16]: SKBUILD_WHEEL_PY_API='' overrides pyproject.toml wheel.py-api='py3' to produce cpXX tag. Fallback: -C wheel.py-api="" or explicit cp311. Needs empirical validation.
