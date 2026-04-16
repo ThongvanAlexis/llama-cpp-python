@@ -11,19 +11,19 @@
 - [x] **WF-02**: Workflow is triggered only by `workflow_dispatch` (no push/tag/release auto-triggers in v1)
 - [x] **WF-03**: Workflow exposes `python_version` input (default `3.11`) selectable at dispatch time
 - [x] **WF-04**: Workflow exposes `cuda_version` input (default `12.6.3`; originally spec'd as `12.4.1`, bumped 2026-04-15 after OQ1 resolution — see STATE.md Decisions) selectable at dispatch time
-- [ ] **WF-05**: Workflow checks out the repo with `submodules: recursive` so `vendor/llama.cpp/` is populated
+- [x] **WF-05**: Workflow checks out the repo with `submodules: recursive` so `vendor/llama.cpp/` is populated
 
 ### Toolchain Pinning (Load-Bearing)
 
 - [x] **TC-01**: Runner is pinned to `windows-2022` explicitly (never `windows-latest`)
-- [ ] **TC-02**: MSVC toolset is auto-selected from runner by enumerating `VC\Tools\MSVC\*` directories, looking up the CUDA _MSC_VER cap from a compatibility matrix (host_config.h), and picking the newest compatible toolset. msvc_toolset input defaults to 'auto'; override mode validates both installed AND CUDA-compatible. Originally spec'd as vs_installer install (abandoned 2026-04-16); then enumerate+pin (abandoned 2026-04-16); now auto-select from compat matrix (2026-04-16).
-- [ ] **TC-03**: MSVC toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: ${{ steps.probe-msvc.outputs.selected_toolset }}` (auto-selected or override-validated value; ilammy wraps `vcvarsall.bat -vcvars_ver=<toolset>` internally)
-- [ ] **TC-04**: Preflight step asserts two things: (1) pin integrity — cl.exe _MSC_VER matches expected value for selected toolset, (2) CUDA compatibility — _MSC_VER ≤ cap from compat matrix. Both checks use probe-msvc step outputs, not raw input.
-- [ ] **TC-05**: CUDA toolkit is installed via a single path (mamba `cuda-toolkit`); no parallel Jimver full-installer install
-- [ ] **TC-06**: Preflight step asserts `nvcc --version` matches the requested `cuda_version` input
-- [ ] **TC-07**: `CUDA_PATH` and `CUDA_PATH_V*_*` env variables are explicitly unset or normalized before build (prevent double-install confusion)
-- [ ] **TC-08**: Visual Studio BuildCustomizations path is detected dynamically (no hardcoded `2019\Enterprise` path from upstream)
-- [ ] **TC-09**: Windows `LongPathsEnabled=1` registry key is set before checkout
+- [x] **TC-02**: MSVC toolset is auto-selected from runner by enumerating `VC\Tools\MSVC\*` directories, looking up the CUDA _MSC_VER cap from a compatibility matrix (host_config.h), and picking the newest compatible toolset. msvc_toolset input defaults to 'auto'; override mode validates both installed AND CUDA-compatible. Originally spec'd as vs_installer install (abandoned 2026-04-16); then enumerate+pin (abandoned 2026-04-16); now auto-select from compat matrix (2026-04-16).
+- [x] **TC-03**: MSVC toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: ${{ steps.probe-msvc.outputs.selected_toolset }}` (auto-selected or override-validated value; ilammy wraps `vcvarsall.bat -vcvars_ver=<toolset>` internally)
+- [x] **TC-04**: Preflight step asserts two things: (1) pin integrity — cl.exe _MSC_VER matches expected value for selected toolset, (2) CUDA compatibility — _MSC_VER ≤ cap from compat matrix. Both checks use probe-msvc step outputs, not raw input.
+- [x] **TC-05**: CUDA toolkit is installed via a single path (mamba `cuda-toolkit`); no parallel Jimver full-installer install
+- [x] **TC-06**: Preflight step asserts `nvcc --version` matches the requested `cuda_version` input
+- [x] **TC-07**: `CUDA_PATH` and `CUDA_PATH_V*_*` env variables are explicitly unset or normalized before build (prevent double-install confusion)
+- [x] **TC-08**: Visual Studio BuildCustomizations path is detected dynamically (no hardcoded `2019\Enterprise` path from upstream)
+- [x] **TC-09**: Windows `LongPathsEnabled=1` registry key is set before checkout
 - [x] **TC-10**: CMake flag `-DCMAKE_CUDA_FLAGS=--allow-unsupported-compiler` is **not** used anywhere; CI fails if the workflow contains that literal (grep-assert)
 
 ### Build + Caching
@@ -128,16 +128,16 @@ Which phases cover which requirements. Populated during roadmap creation.
 | WF-02 | Phase 1 | Complete |
 | WF-03 | Phase 1 | Complete |
 | WF-04 | Phase 1 | Complete |
-| WF-05 | Phase 1 | Pending |
+| WF-05 | Phase 1 | Complete |
 | TC-01 | Phase 1 | Complete |
-| TC-02 | Phase 1 | Pending |
-| TC-03 | Phase 1 | Pending |
-| TC-04 | Phase 1 | Pending |
-| TC-05 | Phase 1 | Pending |
-| TC-06 | Phase 1 | Pending |
-| TC-07 | Phase 1 | Pending |
-| TC-08 | Phase 1 | Pending |
-| TC-09 | Phase 1 | Pending |
+| TC-02 | Phase 1 | Complete |
+| TC-03 | Phase 1 | Complete |
+| TC-04 | Phase 1 | Complete |
+| TC-05 | Phase 1 | Complete |
+| TC-06 | Phase 1 | Complete |
+| TC-07 | Phase 1 | Complete |
+| TC-08 | Phase 1 | Complete |
+| TC-09 | Phase 1 | Complete |
 | TC-10 | Phase 1 | Complete |
 | BLD-01 | Phase 2 | Pending |
 | BLD-02 | Phase 2 | Pending |

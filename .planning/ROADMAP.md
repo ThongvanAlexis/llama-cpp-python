@@ -88,7 +88,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Scaffold & Toolchain Pinning | 0/3 | Planned | - |
+| 1. Scaffold & Toolchain Pinning | 2/3 | In Progress | - |
 | 2. Build & Cache | 0/TBD | Not started | - |
 | 3. Smoke Test (Publish Gate) | 0/TBD | Not started | - |
 | 4. Publish & Consumer UX | 0/TBD | Not started | - |
