@@ -725,6 +725,74 @@ jobs:
           "wheel_path=$($wheel.FullName)" >> $env:GITHUB_OUTPUT
           "wheel_name=$($wheel.Name)" >> $env:GITHUB_OUTPUT
 
+      - name: 'Build: Assert wheel tag'
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # BLD-10: Validate wheel filename matches expected CPython tag pattern.
+          # A mismatched tag (py3-none instead of cp311-cp311) means the wheel
+          # will be invisible to pip on CPython installs.
+          $pyVer = '${{ inputs.python_version }}' -replace '\.', ''  # '3.11' -> '311'
+          $expectedPattern = "llama_cpp_python-.*-cp${pyVer}-cp${pyVer}-win_amd64\.whl$"
+
+          $wheels = @(Get-ChildItem dist/*.whl)
+          if ($wheels.Count -ne 1) {
+            throw "Expected exactly 1 wheel in dist/, found $($wheels.Count): $($wheels.Name -join ', ')"
+          }
+          $wheelName = $wheels[0].Name
+
+          if ($wheelName -notmatch $expectedPattern) {
+            $msg = "Wheel tag assertion FAILED.`n" +
+                   "  Expected pattern: $expectedPattern`n" +
+                   "  Actual filename:  $wheelName`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - If tag is 'py3-none': set SKBUILD_WHEEL_PY_API='' (empty string) before build`n" +
+                   "  - If tag is 'abi3': check pyproject.toml wheel.py-api setting`n" +
+                   "  - If tag is 'none-any': a platform-specific library is missing from the wheel"
+            throw $msg
+          }
+          Write-Host "OK: wheel tag matches -- $wheelName"
+
+      - name: 'Build: Assert wheel size'
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # BLD-11: Ensure wheel stays under the 400 MB budget.
+          # A bloated wheel usually means too many CUDA architecture targets
+          # or debug symbols accidentally embedded in the release build.
+          $maxSizeMB = 400
+          $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1)
+          $sizeMB = [math]::Round($wheel.Length / 1MB, 2)
+
+          if ($sizeMB -ge $maxSizeMB) {
+            $msg = "Wheel size assertion FAILED: $sizeMB MB >= $maxSizeMB MB limit.`n" +
+                   "  File: $($wheel.Name)`n" +
+                   "`n" +
+                   "REMEDIATION:`n" +
+                   "  - Reduce CMAKE_CUDA_ARCHITECTURES (currently 5 targets)`n" +
+                   "  - Drop a real target (e.g. 80-real if Ampere is not needed)`n" +
+                   "  - Check if debug symbols are accidentally embedded"
+            throw $msg
+          }
+          Write-Host "OK: wheel size $sizeMB MB < $maxSizeMB MB -- $($wheel.Name)"
+
+      - name: 'Build: Upload wheel artifact'
+        uses: actions/upload-artifact@v4
+        timeout-minutes: 10
+        with:
+          name: cuda-wheel
+          path: dist/*.whl
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
       - name: 'Build: Save mamba pkgs cache'
         if: always()
         uses: actions/cache/save@v4
@@ -774,6 +842,8 @@ jobs:
           | mamba version | $mambaVer |
           | Disk free (C:) | $([math]::Round($cDrive.Free / 1GB, 2)) GB |
           | CPU | $env:PROCESSOR_IDENTIFIER |
+          | Wheel version | ${{ steps.build-wheel.outputs.wheel_version }} |
+          | Wheel filename | ${{ steps.build-wheel.outputs.wheel_name }} |
 
           **Dispatch inputs:**
           - ``python_version=${{ inputs.python_version }}``
