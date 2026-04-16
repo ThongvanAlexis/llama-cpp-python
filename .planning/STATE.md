@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Completed 01-01-PLAN.md
 last_updated: "2026-04-15T21:30:00.000Z"
-last_activity: 2026-04-16 — Plan 02 probe step refactored from install-on-missing to enumerate-from-disk (fb1497d); 2nd dispatch (14.40) also failed (component retired from channel manifest); enumeration strategy eliminates install dependency entirely; awaiting 3rd dispatch to discover actual available pins
+last_activity: 2026-04-16 — Plan 02 MSVC auto-select from CUDA compat matrix (ef501bd); 3rd dispatch revealed runner has 14.29+14.44; corrected CUDA cap model from per-minor to per-generation (host_config.h); auto-select picks newest compatible toolset; awaiting dispatch verification
 progress:
   total_phases: 4
   completed_phases: 0
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-15)
 Phase: 1 of 4 (Scaffold & Toolchain Pinning)
 Plan: 2 of 3 in current phase (Plan 01 complete — workflow scaffold + lint job operational)
 Status: In progress
-Last activity: 2026-04-16 — Plan 02 probe step refactored: enumerate-from-disk replaces install-on-missing (fb1497d); 2nd dispatch (14.40) also failed because VC.14.40.17.10 component retired from channel manifest; enumeration approach eliminates vs_installer dependency entirely; awaiting 3rd dispatch to discover actual available toolset pins
+Last activity: 2026-04-16 — Plan 02 MSVC auto-select from CUDA compat matrix (ef501bd); 3rd dispatch revealed runner has MSVC 14.29+14.44; corrected CUDA _MSC_VER cap model from per-minor to per-generation (host_config.h); auto-select picks newest compatible toolset; checkpoint: awaiting dispatch verification
 
 Progress: [███░░░░░░░] 33%
 
@@ -74,6 +74,8 @@ Recent decisions affecting current work (from PROJECT.md + research):
 - [Phase 01-scaffold-toolchain-pinning 2026-04-15]: OQ1 resolved — `Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64` component NOT available on current windows-2022 image (actions/runner-images#9701). Chose Option B: bump default toolchain from CUDA 12.4.1 + MSVC 14.39 to CUDA 12.6.3 + MSVC 14.40. Workflow also gains a toolset→VS-suffix hashtable lookup (14.39/17.9, 14.40/17.10, 14.41/17.11, 14.42/17.12) with throw-on-unknown; ilammy `vs-version` now derives dynamically from the lookup (no more hardcoded `[17.9,17.10)`). Pre-dispatch sanity: `12.6.3` exists on `nvidia/label/cuda-12.6.3` noarch channel.
 - [Phase 01-scaffold-toolchain-pinning 2026-04-15]: Discovered + fixed ban-grep self-match bug in Plan 01 lint step: `grep -nH 'allow-unsupported-compiler'` matched its own source line causing every dispatch to fail lint. Replaced with `grep -nHE 'allow[-]unsupported[-]compiler'` — regex character class `[-]` contains only `-`, matches real hyphens in targets but not the pattern's own literal text. Invariant flips from count=1 to count=0.
 - [Phase 01-scaffold-toolchain-pinning 2026-04-16]: MSVC probe step refactored from install-on-missing to enumerate-from-disk. The vs_installer approach failed for both 14.39 AND 14.40 because Microsoft retired those VC components from the windows-2022 channel manifest (actions/runner-images#9701). New approach: enumerate `VC\Tools\MSVC\*` directories on disk (instant, ~0ms); if requested pin present, use it; if not, fail with full list of available pins. Benefits: (1) no dependency on retired channel components, (2) every dispatch log is self-documenting, (3) ilammy simplified to `toolset:` input (no vs-version range derivation). Removed: toolsetToVs hashtable, vs_installer code, vs_version_range/component_id outputs.
+- [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Corrected CUDA _MSC_VER cap model. Original assumption: each CUDA minor version only supports one more MSVC minor (per-minor caps). Actual (from NVIDIA host_config.h): caps are per-generation — CUDA 12.2-12.3 cap at 1939 (`_MSC_VER >= 1940`), CUDA 12.4-12.9 cap at 1949 (`_MSC_VER >= 1950`). This means MSVC 14.44 (_MSC_VER=1944) works with ANY CUDA 12.4+. Sources: nerfstudio#3157, NVIDIA forums, Microsoft _MSC_VER docs. CUDA 12.7 was never released (NVIDIA skipped to 12.8).
+- [Phase 01-scaffold-toolchain-pinning 2026-04-16]: MSVC auto-select design adopted. msvc_toolset input defaults to 'auto' (was '14.40'). Probe step now: (1) looks up CUDA major.minor in a compat matrix to get _MSC_VER cap, (2) enumerates installed toolsets from disk, (3) picks newest compatible toolset automatically. Override mode (explicit pin) validates both installed AND compatible. Benefits: resilient to runner image rotation (adapts to whatever MSVC is available), eliminates need to track which specific MSVC version is on the runner. 3rd dispatch found 14.29 and 14.44 on runner; auto-select will pick 14.44 for CUDA 12.6 (1944 <= 1949).
 
 ### Pending Todos
 
@@ -90,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T06:07:57Z
-Stopped at: Plan 01-02 Task 3 checkpoint — MSVC probe refactored (fb1497d); awaiting 3rd dispatch to discover available toolset pins
+Last session: 2026-04-16T06:34:52Z
+Stopped at: Plan 01-02 Task 3 checkpoint — MSVC auto-select from CUDA compat matrix (ef501bd); awaiting dispatch verification (auto mode + negative tests)
 Resume file: None

@@ -86,13 +86,14 @@ The runtime-works part is non-negotiable: upstream's historical failure mode is 
 | Publish via GitHub Pages pip-compatible index on `gh-pages` | Mirrors abetlen's original UX (`--extra-index-url`); makes `pip install llama-cpp-python` Just Work | — Pending |
 | Workflow trigger: `workflow_dispatch` only in v1 | Minimize noise while stabilizing the VS/nvcc fight; tag/release triggers deferred to v2 | — Pending |
 | Commit `llm_for_ci_test/tiny-llama.gguf` (27 KB) into the repo | Simplest smoke-test plumbing; size is negligible; CI just checks it out | — Pending |
-| Dispatch inputs for `python_version` + `cuda_version` (defaults 3.11 / 12.6.3; msvc_toolset 14.40) | Lets us rebuild for different combos without editing YAML; keeps v1 scope small | Complete (2026-04-15) |
+| Dispatch inputs for `python_version` + `cuda_version` (defaults 3.11 / 12.6.3; msvc_toolset auto) | Lets us rebuild for different combos without editing YAML; keeps v1 scope small. msvc_toolset changed from '14.40' to 'auto' on 2026-04-16 (auto-select design). | Complete (2026-04-16) |
 | Bump default from CUDA 12.4.1 → 12.6.3 and MSVC 14.39 → 14.40 (OQ1 resolution) | `Microsoft.VisualStudio.Component.VC.14.39.17.9.x86.x64` removed from windows-2022 image (actions/runner-images#9701). 14.40 requires nvcc `_MSC_VER` cap ≥ 1940, available starting CUDA 12.5; 12.6.3 is the most recent 12.6 patch confirmed available on the `nvidia/label/cuda-12.6.3` conda channel. | Complete (2026-04-15) — preflight diagnostic hard-failed at probe step with remediation hint; acceptable behavior. |
 | Ban `-allow-unsupported-compiler` | Historical failure mode: compiles but segfaults at runtime | — Pending |
 | Smoke test is a publish gate, not an advisory step | The *whole point* of the project is wheels that work at runtime, not wheels that install | — Pending |
 | Three extra caches: sccache, CUDA installer zip, mamba pkgs | Keepassxc-style cache stack; target cold 30–45 min → warm 5–10 min | — Pending |
 | Save caches on build failure | Most dev iterations will be failing builds; don't re-pay download cost every attempt | — Pending |
 | Enumerate runner MSVC toolsets from disk, not install via vs_installer | Both 14.39 and 14.40 VC components retired from windows-2022 channel manifest (actions/runner-images#9701). Enumeration of `VC\Tools\MSVC\*` is instant, authoritative, and self-documenting. If pin not found, fail with list of available pins. | Complete (2026-04-16) |
+| Auto-select MSVC from CUDA compat matrix | msvc_toolset defaults to 'auto'; probe step uses CUDA<->MSVC compatibility matrix (host_config.h _MSC_VER caps) to pick newest compatible toolset from whatever is installed. Corrected cap model: CUDA 12.4-12.9 all cap at _MSC_VER < 1950 (not per-minor as assumed). Resilient to runner image rotation. | Complete (2026-04-16) |
 
 ---
-*Last updated: 2026-04-16 — MSVC probe refactored: enumerate from disk instead of install-on-missing (vs_installer approach abandoned after both 14.39 and 14.40 components proved unavailable)*
+*Last updated: 2026-04-16 — MSVC auto-select from CUDA compat matrix; msvc_toolset defaults to 'auto'; resilient to runner image rotation*

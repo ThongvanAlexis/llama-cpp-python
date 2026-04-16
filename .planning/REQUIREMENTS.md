@@ -16,9 +16,9 @@
 ### Toolchain Pinning (Load-Bearing)
 
 - [x] **TC-01**: Runner is pinned to `windows-2022` explicitly (never `windows-latest`)
-- [ ] **TC-02**: MSVC toolset is verified present on the runner by enumerating `VC\Tools\MSVC\*` directories on disk (originally spec'd as `vs_installer.exe modify` install; abandoned 2026-04-16 after both 14.39 and 14.40 VC components proved retired from the windows-2022 channel manifest per actions/runner-images#9701). If the requested pin is not found, the step fails with a list of all available toolset pins so the user can re-dispatch with a valid pin
-- [ ] **TC-03**: MSVC toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: ${{ inputs.msvc_toolset }}` (ilammy wraps `vcvarsall.bat -vcvars_ver=<toolset>` internally; no explicit `vs-version` range needed — simplified 2026-04-16 after removing the toolsetToVs hashtable)
-- [ ] **TC-04**: Preflight step asserts `cl.exe /Bv` reports `_MSC_VER` ≤ cap (computed from `${{ inputs.msvc_toolset }}` via `1900 + minor`; for default 14.40 → 1940); build fails loudly if assertion fails
+- [ ] **TC-02**: MSVC toolset is auto-selected from runner by enumerating `VC\Tools\MSVC\*` directories, looking up the CUDA _MSC_VER cap from a compatibility matrix (host_config.h), and picking the newest compatible toolset. msvc_toolset input defaults to 'auto'; override mode validates both installed AND CUDA-compatible. Originally spec'd as vs_installer install (abandoned 2026-04-16); then enumerate+pin (abandoned 2026-04-16); now auto-select from compat matrix (2026-04-16).
+- [ ] **TC-03**: MSVC toolset is activated for the build via `ilammy/msvc-dev-cmd@v1` with `toolset: ${{ steps.probe-msvc.outputs.selected_toolset }}` (auto-selected or override-validated value; ilammy wraps `vcvarsall.bat -vcvars_ver=<toolset>` internally)
+- [ ] **TC-04**: Preflight step asserts two things: (1) pin integrity — cl.exe _MSC_VER matches expected value for selected toolset, (2) CUDA compatibility — _MSC_VER ≤ cap from compat matrix. Both checks use probe-msvc step outputs, not raw input.
 - [ ] **TC-05**: CUDA toolkit is installed via a single path (mamba `cuda-toolkit`); no parallel Jimver full-installer install
 - [ ] **TC-06**: Preflight step asserts `nvcc --version` matches the requested `cuda_version` input
 - [ ] **TC-07**: `CUDA_PATH` and `CUDA_PATH_V*_*` env variables are explicitly unset or normalized before build (prevent double-install confusion)
