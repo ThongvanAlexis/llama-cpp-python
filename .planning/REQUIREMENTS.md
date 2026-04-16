@@ -28,18 +28,18 @@
 
 ### Build + Caching
 
-- [ ] **BLD-01**: Wheel is produced via `python -m build --wheel` using scikit-build-core (not cibuildwheel)
-- [ ] **BLD-02**: sccache is set up via `hendrikmuhs/ccache-action@v1.2` with `variant: sccache`
-- [ ] **BLD-03**: sccache is wired into CMake via `-DCMAKE_C_COMPILER_LAUNCHER=sccache`, `-DCMAKE_CXX_COMPILER_LAUNCHER=sccache`, `-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache`
-- [ ] **BLD-04**: MSVC debug info is forced to `/Z7` (embedded) via `CMAKE_POLICY_DEFAULT_CMP0141=NEW` + `CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded` so sccache can hash TU output deterministically
-- [ ] **BLD-05**: CUDA installer zip is cached with `actions/cache@v4` keyed on `cuda-installer-${cuda_version}-windows`, saved `if: always()` (survives build failure)
-- [ ] **BLD-06**: Mamba/conda package directory is cached with `actions/cache@v4` keyed on `mamba-cuda-${cuda_version}-${runner.os}` with `restore-keys` fallback, saved `if: always()`
-- [ ] **BLD-07**: VS CUDA integration extensions are cached (key `cuda-${cuda_version}-vs-integration`), saved `if: always()`
-- [ ] **BLD-08**: Build uses Ninja generator with `CMAKE_BUILD_PARALLEL_LEVEL` set appropriately for the runner
-- [ ] **BLD-09**: Each job step has a `timeout-minutes` bound to prevent 6h runner-timeout surprises
+- [x] **BLD-01**: Wheel is produced via `python -m build --wheel` using scikit-build-core (not cibuildwheel)
+- [x] **BLD-02**: sccache is set up via `hendrikmuhs/ccache-action@v1.2` with `variant: sccache`
+- [x] **BLD-03**: sccache is wired into CMake via `-DCMAKE_C_COMPILER_LAUNCHER=sccache`, `-DCMAKE_CXX_COMPILER_LAUNCHER=sccache`, `-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache`
+- [x] **BLD-04**: MSVC debug info is forced to `/Z7` (embedded) via `CMAKE_POLICY_DEFAULT_CMP0141=NEW` + `CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded` so sccache can hash TU output deterministically
+- [x] **BLD-05**: CUDA installer zip is cached with `actions/cache@v4` keyed on `cuda-installer-${cuda_version}-windows`, saved `if: always()` (survives build failure)
+- [x] **BLD-06**: Mamba/conda package directory is cached with `actions/cache@v4` keyed on `mamba-cuda-${cuda_version}-${runner.os}` with `restore-keys` fallback, saved `if: always()`
+- [x] **BLD-07**: VS CUDA integration extensions are cached (key `cuda-${cuda_version}-vs-integration`), saved `if: always()`
+- [x] **BLD-08**: Build uses Ninja generator with `CMAKE_BUILD_PARALLEL_LEVEL` set appropriately for the runner
+- [x] **BLD-09**: Each job step has a `timeout-minutes` bound to prevent 6h runner-timeout surprises
 - [ ] **BLD-10**: Produced wheel is tagged correctly: `llama_cpp_python-<version>-cp<pyver>-cp<pyver>-win_amd64.whl` (never `abi3` or `none-any`); wheel-tag regex assertion guards against drift
 - [ ] **BLD-11**: Wheel size is under 400 MB; CI fails if the produced wheel exceeds that
-- [ ] **BLD-12**: Wheel version embeds the llama.cpp submodule short SHA (e.g., `0.3.20+cu126.ll<sha>`) for reproducibility
+- [x] **BLD-12**: Wheel version embeds the llama.cpp submodule short SHA (e.g., `0.3.20+cu126.ll<sha>`) for reproducibility
 - [ ] **BLD-13**: Wheel is uploaded as a GitHub Actions artifact via `actions/upload-artifact@v4` for downstream job consumption
 
 ### Smoke Test (Publish Gate)
@@ -139,18 +139,18 @@ Which phases cover which requirements. Populated during roadmap creation.
 | TC-08 | Phase 1 | Complete |
 | TC-09 | Phase 1 | Complete |
 | TC-10 | Phase 1 | Complete |
-| BLD-01 | Phase 2 | Pending |
-| BLD-02 | Phase 2 | Pending |
-| BLD-03 | Phase 2 | Pending |
-| BLD-04 | Phase 2 | Pending |
-| BLD-05 | Phase 2 | Pending |
-| BLD-06 | Phase 2 | Pending |
-| BLD-07 | Phase 2 | Pending |
-| BLD-08 | Phase 2 | Pending |
-| BLD-09 | Phase 2 | Pending |
+| BLD-01 | Phase 2 | Complete |
+| BLD-02 | Phase 2 | Complete |
+| BLD-03 | Phase 2 | Complete |
+| BLD-04 | Phase 2 | Complete |
+| BLD-05 | Phase 2 | Complete |
+| BLD-06 | Phase 2 | Complete |
+| BLD-07 | Phase 2 | Complete |
+| BLD-08 | Phase 2 | Complete |
+| BLD-09 | Phase 2 | Complete |
 | BLD-10 | Phase 2 | Pending |
 | BLD-11 | Phase 2 | Pending |
-| BLD-12 | Phase 2 | Pending |
+| BLD-12 | Phase 2 | Complete |
 | BLD-13 | Phase 2 | Pending |
 | ST-01 | Phase 3 | Pending |
 | ST-02 | Phase 3 | Pending |

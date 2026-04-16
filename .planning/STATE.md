@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 2 context gathered
-last_updated: "2026-04-16T13:50:55.990Z"
-last_activity: 2026-04-16 — Phase 1 complete. Plan 03 added forensics summary (11-property fingerprint table in Actions UI Summary tab) + DOC-04 inline comments at 4 locked sites. All 16 Phase 1 requirements verified (WF-01..05, TC-01..10, DOC-04). Workflow file feature-complete.
+status: executing
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-04-16T15:04:20.000Z"
+last_activity: 2026-04-16 — Phase 2 Plan 01 complete. Added 7 build steps to workflow (vcvarsall+build, sccache, mamba cache, BuildCustomizations copy). BLD-01 through BLD-09, BLD-12 structurally complete. Plan 02 (assertions + upload) next.
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_plans: 5
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-15)
 
 ## Current Position
 
-Phase: 1 of 4 (Scaffold & Toolchain Pinning) -- COMPLETE
-Plan: 3 of 3 in current phase (all plans complete)
-Status: Phase 1 complete, awaiting verification
-Last activity: 2026-04-16 — Phase 1 complete. Plan 03 added forensics summary (11-property fingerprint table in Actions UI Summary tab) + DOC-04 inline comments at 4 locked sites. All 16 Phase 1 requirements verified (WF-01..05, TC-01..10, DOC-04). Workflow file feature-complete.
+Phase: 2 of 4 (Build & Cache)
+Plan: 1 of 2 in current phase (Plan 01 complete)
+Status: Executing Phase 2
+Last activity: 2026-04-16 — Phase 2 Plan 01 complete. Added 7 build steps to workflow (vcvarsall+build, sccache, mamba cache, BuildCustomizations copy). BLD-01 through BLD-09, BLD-12 structurally complete. Plan 02 (assertions + upload) next.
 
-Progress: [██████████] 100% (Phase 1)
+Progress: [████████░░] 80% (Phase 2, Plan 1/2)
 
 ## Performance Metrics
 
@@ -44,7 +44,7 @@ Progress: [██████████] 100% (Phase 1)
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Scaffold & Toolchain Pinning | 3/3 | ~28.1h | ~9.3h |
-| 2. Build & Cache | 0 | — | — |
+| 2. Build & Cache | 1/2 | ~4 min | ~4 min |
 | 3. Smoke Test (Publish Gate) | 0 | — | — |
 | 4. Publish & Consumer UX | 0 | — | — |
 
@@ -56,6 +56,7 @@ Progress: [██████████] 100% (Phase 1)
 | Phase 01-scaffold-toolchain-pinning P01 | 2 min | 1 tasks | 1 files |
 | Phase 01-scaffold-toolchain-pinning P02 | ~24h | 3 tasks | 1 files |
 | Phase 01-scaffold-toolchain-pinning P03 | ~4h | 3 tasks | 1 files |
+| Phase 02-build-cache P01 | ~4 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,12 @@ Recent decisions affecting current work (from PROJECT.md + research):
 - [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Plan 03 forensics summary uses `$env:CONDA_PREFIX\Library` for CUDA path (not `$env:CUDA_PATH`) because mamba CUDA install sets CONDA_PREFIX but not CUDA_PATH. Phase 2 should use the same pattern for any CUDA path references.
 - [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Phase 1 COMPLETE. All 16 requirements verified (WF-01..05, TC-01..10, DOC-04). Workflow file has 15 preflight steps + 2-step lint-workflow job. Forensics summary renders 11-property table in Actions UI Summary tab on green; remediation hint block on red. DOC-04 comments at 4 locked sites with ban-grep-safe paraphrases.
 
+- [Phase 02-build-cache 2026-04-16]: vcvarsall activation INLINE in build step (not dedicated step) -- env vars don't persist across GH Actions steps. Uses probe-msvc outputs (install_path + selected_full_version) to locate vcvarsall.bat.
+- [Phase 02-build-cache 2026-04-16]: 12-char llama.cpp SHA re-derived via `git -C vendor/llama.cpp rev-parse HEAD` (assert-submodule only outputs 7 chars). Collision-safe for large repo.
+- [Phase 02-build-cache 2026-04-16]: SKBUILD_WHEEL_PY_API='' overrides pyproject.toml wheel.py-api='py3' to produce cpXX tag. Fallback: -C wheel.py-api="" or explicit cp311. Needs empirical validation.
+- [Phase 02-build-cache 2026-04-16]: CMP0141 dual approach -- CMAKE_POLICY_DEFAULT_CMP0141=NEW + Embedded + /Z7 FLAGS_INIT fallback (sccache#2244 workaround). Empirical validation on first dispatch.
+- [Phase 02-build-cache 2026-04-16]: CMAKE_BUILD_PARALLEL_LEVEL=2 (runner has 4 vCPUs but CUDA compilation is memory-heavy).
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -101,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T13:50:55.987Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-build-cache/02-CONTEXT.md
+Last session: 2026-04-16T15:04:20.000Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: .planning/phases/02-build-cache/02-01-SUMMARY.md
