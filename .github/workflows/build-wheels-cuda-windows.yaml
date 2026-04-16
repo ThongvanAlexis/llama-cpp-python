@@ -246,11 +246,7 @@ jobs:
           CUDA_CHANNEL="nvidia/label/cuda-${CUDA_VERSION}"
           # TC-05: single install path. No Jimver full-installer.
           # --channel-priority strict prevents conda-forge from pulling a mismatched cudart.
-          mamba install -y \
-            --channel-priority strict \
-            --override-channels \
-            -c "${CUDA_CHANNEL}" \
-            "${CUDA_CHANNEL}::cuda-toolkit=${CUDA_VERSION}"
+          mamba install -y --channel-priority strict --override-channels --channel "${CUDA_CHANNEL}" "cuda-toolkit=${CUDA_VERSION}"
 
       - name: 'Preflight: Assert MSVC _MSC_VER matches selected toolset and CUDA cap'
         id: assert-msvc
