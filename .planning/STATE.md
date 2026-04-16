@@ -63,7 +63,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work (from PROJECT.md + research):
 
 - [Phase 1]: New workflow file `build-wheels-cuda-windows.yaml`, not edit of upstream's `build-wheels-cuda.yaml` (merge-conflict hygiene)
-- [Phase 1]: MSVC 14.39 toolset side-by-side install + `ilammy/msvc-dev-cmd@v1 toolset: 14.39` (the non-negotiable fix for nvcc `_MSC_VER < 1950` vs runner's 1950)
+- [Phase 1]: MSVC auto-selected from runner (not pinned). `ilammy/msvc-dev-cmd` dropped — conda + ilammy both call vcvarsall.bat, overflowing CMD's 8192-char INCLUDE/LIB limit. Phase 1 calls cl.exe by full path for _MSC_VER check. **Phase 2 must NOT use ilammy** — use cmake's VS generator or a clean vcvarsall subprocess instead
 - [Phase 1]: `-allow-unsupported-compiler` banned (historical runtime-segfault trap, upstream #1543); enforced by grep-assert
 - [Phase 2]: save caches on failure (`if: always()`) — most dev iterations will be failing builds
 - [Phase 3]: Smoke test is a hard publish gate (`needs: [build, smoke-test]`), not an advisory step
@@ -89,6 +89,10 @@ None yet.
 
 - [Phase 1 resolved 2026-04-16]: MSVC component availability on windows-2022 — FULLY resolved. Both 14.39 and 14.40 components were unavailable via vs_installer channel manifest. Root cause: Microsoft retires older VC components from the manifest but the toolset files remain on disk. Solution: enumerate `VC\Tools\MSVC\*` directories instead of querying channel manifest (commit fb1497d). Next dispatch will reveal which pins are actually installed; default will be updated to match.
 - [Phase 2 pre-plan risk]: `hashFiles('vendor/llama.cpp/.git/HEAD')` behaves differently when submodule `.git` is a file (git-dir indirection) vs a directory — verify empirically on first Phase 1 run.
+- [Phase 2 CRITICAL]: **Do NOT use `ilammy/msvc-dev-cmd`** for VS environment activation. Conda's activation hook calls vcvarsall.bat internally, and a second vcvars call (from ilammy) overflows CMD's 8192-char INCLUDE/LIB limit. Options for Phase 2 build step: (a) cmake's "Visual Studio 17 2022" generator handles VS activation natively, (b) call vcvarsall.bat in a clean pwsh subprocess before the build, (c) set INCLUDE/LIB/PATH manually from probe-msvc outputs. The MSVC toolset is auto-selected by probe-msvc step (outputs: `selected_toolset`, `selected_full_version`, `install_path`). cl.exe full path: `$install_path\VC\Tools\MSVC\$selected_full_version\bin\HostX64\x64\cl.exe`.
+- [Phase 2 note]: mamba install step uses `shell: pwsh` (not bash). Git Bash on Windows corrupts mamba channel arguments through conda's .bat activation chain. All conda/mamba steps should use pwsh.
+- [Phase 2 note]: Step ordering — probe-msvc runs FIRST (before checkout/python/mamba) for instant fail on bad inputs. Mamba/CUDA install runs BEFORE any vcvars activation. The order matters for INCLUDE/LIB overflow prevention.
+- [Phase 2 note]: Runner `windows-2022` has MSVC 14.29 + 14.44 (as of 2026-04-16). Auto-select picks 14.44 (_MSC_VER=1944) for CUDA 12.6 (cap=1949). CUDA 12.4-12.9 all accept any VS 2022 MSVC (_MSC_VER < 1950).
 
 ## Session Continuity
 
