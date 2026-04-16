@@ -612,7 +612,118 @@ jobs:
             sccache-cuda-${{ inputs.cuda_version }}-${{ steps.probe-msvc.outputs.selected_toolset }}-
           max-size: 500M
 
-      # ── Build step inserted by Task 2 goes here ──
+      - name: 'Build: Activate MSVC and build wheel'
+        id: build-wheel
+        shell: pwsh
+        timeout-minutes: 60
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # ── 1. vcvarsall activation ──
+          # CRITICAL: Do NOT use ilammy/msvc-dev-cmd (vcvarsall overflow with conda).
+          # Activate in this same pwsh step so INCLUDE/LIB/PATH persist for cmake.
+          $installPath = '${{ steps.probe-msvc.outputs.install_path }}'
+          $selectedFull = '${{ steps.probe-msvc.outputs.selected_full_version }}'
+          $vcvarsall = Join-Path $installPath 'VC\Auxiliary\Build\vcvarsall.bat'
+
+          if (-not (Test-Path $vcvarsall)) {
+            throw "vcvarsall.bat not found at $vcvarsall — probe-msvc output may be stale"
+          }
+
+          # Capture env before vcvarsall
+          $envBefore = @{}
+          Get-ChildItem env: | ForEach-Object { $envBefore[$_.Name] = $_.Value }
+
+          # Run vcvarsall in cmd subprocess, capture env after
+          $envLines = cmd /c "`"$vcvarsall`" x64 -vcvars_ver=$selectedFull >nul 2>&1 && set"
+          foreach ($line in $envLines) {
+            if ($line -match '^([^=]+)=(.*)$') {
+              $name = $Matches[1]; $value = $Matches[2]
+              if (-not $envBefore.ContainsKey($name) -or $envBefore[$name] -ne $value) {
+                Set-Item "env:$name" $value
+              }
+            }
+          }
+          $clPath = (Get-Command cl.exe -ErrorAction Stop).Source
+          Write-Host "vcvarsall activated: cl.exe at $clPath"
+
+          # ── 2. CUDA paths ──
+          # Use CONDA_PREFIX\Library, NOT $env:CUDA_PATH (per Phase 1 STATE.md).
+          $env:CUDA_PATH = "$env:CONDA_PREFIX\Library"
+          $env:CUDA_HOME = "$env:CONDA_PREFIX\Library"
+
+          # ── 3. Version override via __init__.py rewrite (BLD-12) ──
+          # scikit-build-core's regex provider reads from __init__.py directly.
+          # SETUPTOOLS_SCM_PRETEND_VERSION has zero effect here (see RESEARCH.md Pitfall 5).
+          $initFile = 'llama_cpp/__init__.py'
+          $content = Get-Content $initFile -Raw
+          $verMatch = [regex]::Match($content, '__version__\s*=\s*"([^"]+)"')
+          if (-not $verMatch.Success) { throw "Cannot parse version from $initFile" }
+          $baseVersion = $verMatch.Groups[1].Value
+
+          # 12-char SHA for collision safety in the large llama.cpp repo.
+          # assert-submodule outputs a short SHA (7 chars); re-derive 12 chars.
+          $llamaSha12 = (git -C vendor/llama.cpp rev-parse HEAD).Substring(0, 12)
+
+          # Compute CUDA tag: '12.6.3' -> 'cu126'
+          $cudaVer = '${{ inputs.cuda_version }}'
+          $cudaParts = $cudaVer -split '\.'
+          $cudaTag = "cu$($cudaParts[0])$($cudaParts[1])"
+
+          $fullVersion = "$baseVersion+$cudaTag.ll$llamaSha12"
+          Write-Host "Wheel version: $fullVersion"
+
+          $newContent = $content -replace ('__version__\s*=\s*"[^"]+"'), "__version__ = `"$fullVersion`""
+          Set-Content $initFile -Value $newContent -NoNewline
+
+          # ── 4. CMAKE_ARGS construction (BLD-03, BLD-04, BLD-08) ──
+          $cudaArchs = '80-real;86-real;89-real;90-real;90-virtual'
+          $env:CMAKE_ARGS = @(
+            '-G Ninja'
+            '-DGGML_CUDA=on'
+            "-DCMAKE_CUDA_ARCHITECTURES=$cudaArchs"
+            '-DGGML_CUDA_FORCE_MMQ=ON'
+            '-DGGML_AVX2=off'
+            '-DGGML_FMA=off'
+            '-DGGML_F16C=off'
+            '-DCMAKE_C_COMPILER_LAUNCHER=sccache'
+            '-DCMAKE_CXX_COMPILER_LAUNCHER=sccache'
+            '-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache'
+            '-DCMAKE_POLICY_DEFAULT_CMP0141=NEW'
+            '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded'
+            '-DCMAKE_C_FLAGS_INIT="/Z7"'
+            '-DCMAKE_CXX_FLAGS_INIT="/Z7"'
+          ) -join ' '
+
+          # Runner has 4 vCPUs but CUDA compilation is memory-heavy — limit to 2.
+          $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
+
+          # Override pyproject.toml's wheel.py-api="py3" to get cpXX tag (not py3-none).
+          # Fallback if empty string doesn't work:
+          #   Option 1: python -m build --wheel -C wheel.py-api=""
+          #   Option 2: $env:SKBUILD_WHEEL_PY_API = "cp$('${{ inputs.python_version }}' -replace '\.','')"
+          $env:SKBUILD_WHEEL_PY_API = ''
+
+          Write-Host "CMAKE_ARGS: $env:CMAKE_ARGS"
+          Write-Host "CMAKE_BUILD_PARALLEL_LEVEL: $env:CMAKE_BUILD_PARALLEL_LEVEL"
+          Write-Host "SKBUILD_WHEEL_PY_API: '$env:SKBUILD_WHEEL_PY_API'"
+
+          # ── 5. Build the wheel (BLD-01) ──
+          python -m build --wheel
+          if ($LASTEXITCODE -ne 0) { throw "python -m build --wheel failed with exit code $LASTEXITCODE" }
+
+          # ── 6. Restore __init__.py (cleanup) ──
+          # CRITICAL: Do NOT leave modified tracked file in the checkout.
+          git checkout -- $initFile
+
+          # ── 7. Emit wheel path output for downstream steps ──
+          $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1)
+          if (-not $wheel) { throw "No .whl file found in dist/ after build" }
+          Write-Host "Built wheel: $($wheel.Name) ($([math]::Round($wheel.Length / 1MB, 2)) MB)"
+          "wheel_version=$fullVersion" >> $env:GITHUB_OUTPUT
+          "wheel_path=$($wheel.FullName)" >> $env:GITHUB_OUTPUT
+          "wheel_name=$($wheel.Name)" >> $env:GITHUB_OUTPUT
 
       - name: 'Build: Save mamba pkgs cache'
         if: always()
