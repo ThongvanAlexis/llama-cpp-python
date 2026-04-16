@@ -350,7 +350,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
 
           # TC-07: sweep ghost env vars from prior installs (CUDA_PATH_V12_4, etc.)
-          $ghosts = Get-ChildItem env: | Where-Object { $_.Name -match '^CUDA_PATH_V\d+_\d+$' }
+          $ghosts = @(Get-ChildItem env: | Where-Object { $_.Name -match '^CUDA_PATH_V\d+_\d+$' })
           if ($ghosts.Count -gt 0) {
             foreach ($g in $ghosts) {
               Write-Warning "Removing ghost env var: $($g.Name)=$($g.Value)"
