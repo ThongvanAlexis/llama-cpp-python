@@ -721,10 +721,12 @@ jobs:
             '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded'
             '-DCMAKE_C_FLAGS_INIT="/Z7"'
             '-DCMAKE_CXX_FLAGS_INIT="/Z7"'
+            '-DCMAKE_CUDA_FLAGS=-diag-suppress=177,221,550'
           ) -join ' '
 
-          # Runner has 4 vCPUs but CUDA compilation is memory-heavy — limit to 2.
-          $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
+          # Runner has 4 vCPUs but CUDA compilation with 5 arch targets is very
+          # memory-heavy — parallel nvcc kills sccache daemon (os error 10054).
+          $env:CMAKE_BUILD_PARALLEL_LEVEL = '1'
 
           # Override pyproject.toml's wheel.py-api="py3" to get cpXX tag (not py3-none).
           # Fallback if empty string doesn't work:
