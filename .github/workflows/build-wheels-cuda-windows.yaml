@@ -79,33 +79,6 @@ jobs:
           python-version: ${{ inputs.python_version }}
           cache: 'pip'
 
-      - name: Setup mamba
-        uses: conda-incubator/setup-miniconda@v3.1.0
-        with:
-          activate-environment: llamacpp
-          python-version: ${{ inputs.python_version }}
-          miniforge-version: latest
-          add-pip-as-python-dependency: true
-          auto-activate-base: false
-
-      - name: Install CUDA toolkit via mamba
-        shell: pwsh
-        timeout-minutes: 15
-        run: |
-          Set-StrictMode -Version Latest
-          $ErrorActionPreference = 'Stop'
-
-          $cudaVersion = '${{ inputs.cuda_version }}'
-          $cudaChannel = "nvidia/label/cuda-$cudaVersion"
-          # TC-05: single install path. No Jimver full-installer.
-          # --channel-priority strict prevents conda-forge from pulling a mismatched cudart.
-          # IMPORTANT: mamba/conda setup MUST run BEFORE ilammy/msvc-dev-cmd. Conda's
-          # activation hook calls vcvars64.bat which appends VS paths to INCLUDE/LIB.
-          # If ilammy already set INCLUDE/LIB (long paths), conda re-appends and the
-          # combined string exceeds CMD's 8192-char line limit → "input line is too long".
-          mamba install -y --channel-priority strict --override-channels --channel $cudaChannel "cuda-toolkit=$cudaVersion"
-          if ($LASTEXITCODE -ne 0) { throw "mamba install failed with exit code $LASTEXITCODE" }
-
       - name: Probe and auto-select MSVC toolset
         id: probe-msvc
         shell: pwsh
@@ -243,6 +216,29 @@ jobs:
           "selected_full_version=$selectedFull" >> $env:GITHUB_OUTPUT
           "msc_ver_cap=$mscVerCap" >> $env:GITHUB_OUTPUT
           "install_path=$installPath" >> $env:GITHUB_OUTPUT
+
+      - name: Setup mamba
+        uses: conda-incubator/setup-miniconda@v3.1.0
+        with:
+          activate-environment: llamacpp
+          python-version: ${{ inputs.python_version }}
+          miniforge-version: latest
+          add-pip-as-python-dependency: true
+          auto-activate-base: false
+
+      - name: Install CUDA toolkit via mamba
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $cudaVersion = '${{ inputs.cuda_version }}'
+          $cudaChannel = "nvidia/label/cuda-$cudaVersion"
+          # TC-05: single install path. No Jimver full-installer.
+          # --channel-priority strict prevents conda-forge from pulling a mismatched cudart.
+          mamba install -y --channel-priority strict --override-channels --channel $cudaChannel "cuda-toolkit=$cudaVersion"
+          if ($LASTEXITCODE -ne 0) { throw "mamba install failed with exit code $LASTEXITCODE" }
 
       # NOTE: ilammy/msvc-dev-cmd is NOT used here. Conda's activation hook also
       # calls vcvarsall.bat, and the two vcvars calls together produce INCLUDE/LIB
