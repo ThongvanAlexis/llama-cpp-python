@@ -1300,7 +1300,7 @@ jobs:
           $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
 
           # ST-07: verify expected CUDA architectures in ggml-cuda.dll.
-          $sitePackages = & $venvPython -c "import site; print(site.getsitepackages()[0])"
+          $sitePackages = & $venvPython -c "import sysconfig; print(sysconfig.get_path('platlib'))"
           $dllPath = Join-Path $sitePackages 'llama_cpp\lib\ggml-cuda.dll'
 
           if (-not (Test-Path $dllPath)) {
@@ -1516,7 +1516,7 @@ jobs:
 
           # cuobjdump output if DLL found
           $cuobjdumpOutput = ''
-          $sitePackages = & $venvPython -c "import site; print(site.getsitepackages()[0])" 2>&1
+          $sitePackages = & $venvPython -c "import sysconfig; print(sysconfig.get_path('platlib'))" 2>&1
           $dllPath = Join-Path $sitePackages 'llama_cpp\lib\ggml-cuda.dll' -ErrorAction SilentlyContinue
           if (Test-Path $dllPath -ErrorAction SilentlyContinue) {
             $cuobjdumpOutput = cuobjdump --list-elf $dllPath 2>&1 | Out-String
