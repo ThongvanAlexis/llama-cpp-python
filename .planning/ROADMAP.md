@@ -60,10 +60,10 @@ Plans:
   3. The smoke-test job runs `cuobjdump --list-elf ggml-cuda.dll` and fails if the expected CUDA architectures (`sm_80`, `sm_86`, `sm_89`, `sm_90`) are not all present, compensating for the absence of a GPU on the runner.
   4. Deleting `smoke-test` from `needs:` on the publish job is a grep-detectable regression: the workflow contains `needs: [build, smoke-test]` on the publish job and a CI self-check asserts it, so publish is structurally gated on smoke test.
   5. A deliberately-broken wheel (e.g., one built with `-allow-unsupported-compiler` in a spiked branch) causes the smoke-test job to go red, and the publish job correctly does not run for that dispatch.
-**Plans**: TBD (1-3 plans; likely 1 plan — smoke-test + fixture + gate-assertion cluster together)
+**Plans**: 1 plan
 
 Plans:
-- [ ] 03-01: TBD — commit tiny-llama.gguf fixture, add smoke-test job with sparse checkout + fresh venv + Llama inference + cuobjdump arch check + `needs:` gate
+- [ ] 03-01-PLAN.md — Commit tiny-llama.gguf fixture, add smoke-test job with sparse checkout + fresh venv + import/version assertions + cuobjdump arch check + subprocess inference test with WER suppression + forensics [human-verify checkpoint] (ST-01..ST-08)
 
 ### Phase 4: Publish & Consumer UX
 **Goal**: On green smoke-test, the publish job (on `ubuntu-latest`) uploads the wheel as a GitHub Release asset, places it under `whl/cu126/llama-cpp-python/` on the `gh-pages` branch with a regenerated PEP 503-compliant `index.html` (SHA-256 fragments + `data-requires-python` attrs), guarded by a `concurrency:` block and a post-publish HTTP probe — plus the consumer-facing README updates that make the index usable.
@@ -90,7 +90,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Scaffold & Toolchain Pinning | 3/3 | Complete | 2026-04-16 |
 | 2. Build & Cache | 2/2 | Complete | 2026-04-17 |
-| 3. Smoke Test (Publish Gate) | 0/TBD | Not started | - |
+| 3. Smoke Test (Publish Gate) | 0/1 | Planned | - |
 | 4. Publish & Consumer UX | 0/TBD | Not started | - |
 
 ## Coverage
@@ -106,3 +106,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 *Phase 1 planned: 2026-04-15 (3 plans, wave-sequential)*
 *Updated 2026-04-15 — OQ1 resolution: default cuda_version 12.4.1 → 12.6.3, msvc_toolset 14.39 → 14.40 (VC.14.39.17.9 component retired from windows-2022 image per actions/runner-images#9701)*
 *Phase 2 planned: 2026-04-16 (2 plans, wave-sequential — build body + cache in wave 1, assertions + dispatch verification in wave 2)*
+*Phase 3 planned: 2026-04-17 (1 plan — smoke-test job + fixture + assertions + dispatch verification [human-verify checkpoint])*
