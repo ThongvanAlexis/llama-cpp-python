@@ -636,7 +636,7 @@ jobs:
           variant: sccache
           key: sccache-cuda-${{ inputs.cuda_version }}-${{ steps.probe-msvc.outputs.selected_toolset }}
           append-timestamp: false
-          max-size: 500M
+          max-size: 5G
 
       - name: 'Build: Activate MSVC and build wheel'
         id: build-wheel
@@ -707,6 +707,7 @@ jobs:
           $cudaArchs = '80-real;86-real;89-real;90-real;90-virtual'
           $env:CMAKE_ARGS = @(
             '-G Ninja'
+            '-DCMAKE_BUILD_TYPE=Release'
             '-DGGML_CUDA=on'
             "-DCMAKE_CUDA_ARCHITECTURES=$cudaArchs"
             '-DGGML_CUDA_FORCE_MMQ=ON'
