@@ -52,9 +52,9 @@
 #      ONLY place in this file where the banned flag appears literally).
 #
 # ROADMAP
-#   Phase 1 (this file, current):     Scaffold + toolchain pinning + preflight
-#   Phase 2 (future, same file):      Build job (scikit-build-core -> wheel)
-#   Phase 3 (future, same file):      Smoke-test publish gate
+#   Phase 1 (this file, done):        Scaffold + toolchain pinning + preflight
+#   Phase 2 (this file, done):        Build job (scikit-build-core -> wheel)
+#   Phase 3 (this file, done):        Smoke-test publish gate
 #   Phase 4 (future, same file):      PEP 503 index publish on gh-pages
 #   See .planning/ROADMAP.md for details.
 #
@@ -915,6 +915,457 @@ jobs:
           "@
           $hint | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           Write-Host $hint
+
+  # ── Phase 3: Smoke-test publish gate ─────────────────────────────────────
+  # Separate job on a FRESH windows-2022 runner (not the build runner).
+  # Installs the built wheel into a clean venv and proves it can load a model
+  # and run inference without crashing. Sparse checkout excludes llama_cpp/
+  # source so import resolves from site-packages, not the repo checkout.
+  # cuobjdump verifies the expected CUDA architectures are embedded in the DLL.
+  # Phase 4's publish job will declare `needs: [build, smoke-test]`.
+  smoke-test:
+    needs: [build]
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: 'Checkout (sparse -- exclude llama_cpp/ source)'
+        uses: actions/checkout@v4
+        timeout-minutes: 5
+        with:
+          sparse-checkout: |
+            /*
+            !llama_cpp/
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+          # NO submodules: recursive -- smoke-test doesn't need vendor source
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        timeout-minutes: 5
+        with:
+          name: cuda-wheel
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        timeout-minutes: 5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: 'Smoke-test: Restore mamba pkgs cache'
+        id: cache-mamba-smoke-restore
+        uses: actions/cache/restore@v4
+        timeout-minutes: 5
+        with:
+          path: ${{ env.MAMBA_ROOT_PREFIX }}/pkgs
+          key: mamba-smoke-${{ inputs.cuda_version }}-${{ runner.os }}-${{ hashFiles('.github/workflows/build-wheels-cuda-windows.yaml') }}
+          restore-keys: |
+            mamba-smoke-${{ inputs.cuda_version }}-${{ runner.os }}-
+
+      - name: Setup mamba
+        uses: conda-incubator/setup-miniconda@v3.1.0
+        timeout-minutes: 10
+        with:
+          activate-environment: smoke-test
+          python-version: ${{ inputs.python_version }}
+          miniforge-version: latest
+          add-pip-as-python-dependency: true
+          auto-activate-base: false
+
+      - name: 'Smoke-test: Install CUDA toolkit (for cuobjdump)'
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $cudaVersion = '${{ inputs.cuda_version }}'
+          $cudaChannel = "nvidia/label/cuda-$cudaVersion"
+          mamba install -y --channel-priority strict --override-channels --channel $cudaChannel "cuda-toolkit=$cudaVersion"
+          if ($LASTEXITCODE -ne 0) { throw "mamba install cuda-toolkit failed with exit code $LASTEXITCODE" }
+
+      - name: 'Smoke-test: Disable WER crash dialog'
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # Disable Windows Error Reporting crash dialog -- prevents modal dialog
+          # from hanging CI runner indefinitely on access violation.
+          $werKey = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting'
+          New-ItemProperty -Path $werKey -Name 'DontShowUI' -Value 1 -PropertyType DWORD -Force | Out-Null
+          New-ItemProperty -Path $werKey -Name 'Disabled' -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "WER DontShowUI=1, Disabled=1"
+
+          # Also set process error mode for subprocess inheritance.
+          # SEM_FAILCRITICALERRORS=0x0001 | SEM_NOGPFAULTERRORBOX=0x0002 = 0x0003
+          Add-Type -TypeDefinition @"
+          using System.Runtime.InteropServices;
+          public class ErrorMode {
+              [DllImport("kernel32.dll")]
+              public static extern uint SetErrorMode(uint uMode);
+          }
+          "@
+          [ErrorMode]::SetErrorMode(0x0003) | Out-Null
+          Write-Host "SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX) applied"
+
+      - name: 'Smoke-test: Assert sparse checkout exclusion'
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # ST-03 proof: llama_cpp/ source must be excluded so import resolves
+          # from site-packages (not the repo checkout).
+          if (Test-Path 'llama_cpp/__init__.py') {
+            throw @"
+          SPARSE CHECKOUT FAILED: llama_cpp/ source is present.
+          Import would resolve to repo checkout, not site-packages.
+
+          REMEDIATION:
+            - Check the 'Checkout (sparse)' step log for warnings
+            - Verify sparse-checkout-cone-mode: false is set
+            - Verify sparse-checkout pattern includes '!llama_cpp/'
+          "@
+          }
+          if (-not (Test-Path 'llm_for_ci_test/tiny-llama.gguf')) {
+            throw @"
+          SPARSE CHECKOUT FAILED: llm_for_ci_test/tiny-llama.gguf not found.
+          The GGUF fixture was excluded by sparse checkout.
+
+          REMEDIATION:
+            - Check the sparse-checkout pattern does NOT exclude llm_for_ci_test/
+            - Verify the file is committed: git ls-files llm_for_ci_test/tiny-llama.gguf
+          "@
+          }
+          Write-Host "OK: sparse checkout excludes llama_cpp/, includes llm_for_ci_test/"
+
+      - name: 'Smoke-test: Create venv and install wheel'
+        id: install-wheel
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # ST-05: clean venv so the wheel installs into an isolated environment.
+          python -m venv .smoke-venv
+          $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
+
+          # download-artifact puts the wheel in the workspace root.
+          $wheel = (Get-ChildItem *.whl | Select-Object -First 1)
+          if (-not $wheel) {
+            throw @"
+          No .whl file found in workspace root after download-artifact.
+
+          REMEDIATION:
+            - Check the 'Download wheel artifact' step completed successfully
+            - Verify the build job uploaded artifact with name 'cuda-wheel'
+            - Run: gh run view <id> --log to inspect artifact upload step
+          "@
+          }
+          Write-Host "Installing wheel: $($wheel.Name)"
+          & $venvPython -m pip install $wheel.FullName
+          if ($LASTEXITCODE -ne 0) {
+            throw "pip install failed (exit $LASTEXITCODE) for wheel: $($wheel.Name)"
+          }
+          Write-Host "OK: wheel installed successfully"
+          "wheel_name=$($wheel.Name)" >> $env:GITHUB_OUTPUT
+
+      - name: 'Smoke-test: Assert import resolves to site-packages'
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
+
+          # ST-03 continued: import must come from site-packages, not repo checkout.
+          $importPath = & $venvPython -c "import llama_cpp; print(llama_cpp.__file__)"
+          if ($LASTEXITCODE -ne 0) { throw "import llama_cpp failed (exit $LASTEXITCODE)" }
+
+          if ($importPath -notmatch 'site-packages') {
+            throw @"
+          llama_cpp.__file__ does not contain 'site-packages': $importPath
+          The import resolved to the repo checkout instead of the installed wheel.
+
+          REMEDIATION:
+            - Verify sparse checkout excluded llama_cpp/ directory
+            - Check that the venv python is used (not system python)
+            - Run: $venvPython -c "import llama_cpp; print(llama_cpp.__file__)"
+          "@
+          }
+          $repoRoot = (Get-Location).Path
+          if ($importPath.StartsWith($repoRoot)) {
+            throw @"
+          llama_cpp.__file__ resolves to repo checkout path: $importPath
+          Expected: path under .smoke-venv/Lib/site-packages/
+
+          REMEDIATION:
+            - Verify sparse checkout excluded llama_cpp/ directory
+            - A leftover llama_cpp/ directory may be present from a prior run
+          "@
+          }
+          Write-Host "OK: llama_cpp imported from $importPath"
+
+      - name: 'Smoke-test: Assert version cross-check'
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
+
+          # Verify installed version contains expected +cu126.ll<sha> suffix.
+          # This proves the version embed from Phase 2 survived installation.
+          $version = & $venvPython -c "import llama_cpp; print(llama_cpp.__version__)"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to get llama_cpp.__version__ (exit $LASTEXITCODE)" }
+
+          if ($version -notmatch '\+cu126\.ll[a-f0-9]+') {
+            throw @"
+          Version '$version' does not match expected +cu126.ll<sha> pattern.
+          This means the build job did not embed the CUDA version tag correctly,
+          or a different (wrong) wheel was installed.
+
+          REMEDIATION:
+            - Check the build job's version override step
+            - Verify the wheel filename contains +cu126.ll in the version segment
+            - Re-dispatch with verbose=true for more details
+          "@
+          }
+          Write-Host "OK: installed version $version"
+
+      - name: 'Smoke-test: cuobjdump CUDA architecture check'
+        id: cuobjdump-check
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
+
+          # ST-07: verify expected CUDA architectures in ggml-cuda.dll.
+          $sitePackages = & $venvPython -c "import site; print(site.getsitepackages()[0])"
+          $dllPath = Join-Path $sitePackages 'llama_cpp\lib\ggml-cuda.dll'
+
+          if (-not (Test-Path $dllPath)) {
+            throw @"
+          ggml-cuda.dll not found at $dllPath
+
+          REMEDIATION:
+            - The wheel may not contain CUDA support (CPU-only build)
+            - Check the build job CMAKE_ARGS included -DGGML_CUDA=on
+            - Search: Get-ChildItem -Recurse -Filter ggml-cuda.dll (Resolve-Path '.smoke-venv')
+          "@
+          }
+
+          $elfOutput = cuobjdump --list-elf $dllPath 2>&1 | Out-String
+          Write-Host "cuobjdump output:`n$elfOutput"
+
+          $expectedArchs = @('sm_80', 'sm_86', 'sm_89', 'sm_90')
+          $missing = @()
+          foreach ($arch in $expectedArchs) {
+            if ($elfOutput -notmatch $arch) {
+              $missing += $arch
+            }
+          }
+          if ($missing.Count -gt 0) {
+            throw @"
+          Missing CUDA architectures in ggml-cuda.dll: $($missing -join ', ')
+          Expected: $($expectedArchs -join ', ')
+          cuobjdump output: $elfOutput
+
+          REMEDIATION:
+            - Check CMAKE_CUDA_ARCHITECTURES in the build job (expected: 80-real;86-real;89-real;90-real;90-virtual)
+            - If sm_90 is missing, verify 90-real is in the arch list (not just 90-virtual)
+            - Re-dispatch the build with verbose=true
+          "@
+          }
+
+          $foundArchs = ($expectedArchs | Where-Object { $elfOutput -match $_ }) -join ','
+          Write-Host "OK: all expected CUDA architectures present: $($expectedArchs -join ', ')"
+          "arch_list=$foundArchs" >> $env:GITHUB_OUTPUT
+
+      - name: 'Smoke-test: Inference test'
+        id: inference-test
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
+
+          # ST-06: load model, generate 2 tokens, capture output.
+          # Runs in subprocess so segfault = non-zero exit, not step death.
+          # n_gpu_layers=0 forces CPU fallback (runner has no GPU).
+          $inferenceScript = @"
+          import sys
+          from llama_cpp import Llama
+          llm = Llama(model_path='llm_for_ci_test/tiny-llama.gguf', n_ctx=64, n_gpu_layers=0)
+          output = llm('hi', max_tokens=2)
+          text = output['choices'][0]['text']
+          print(f'INFERENCE_OUTPUT={text}')
+          sys.exit(0)
+          "@
+
+          $output = & $venvPython -c $inferenceScript 2>&1 | Out-String
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) {
+            throw @"
+          Inference test FAILED (exit $exitCode).
+          Output:
+          $output
+
+          REMEDIATION:
+            - If exit code is -1073741819 (0xC0000005): access violation / segfault
+              This is the exact failure mode this smoke test exists to catch.
+              The wheel compiled but crashes at runtime. See upstream #1543.
+            - If exit code is 1: Python exception (check traceback above)
+            - If exit code is -1: process killed (check WER suppression step)
+            - Re-dispatch with verbose=true for more details
+          "@
+          }
+
+          # Parse inference output for forensics
+          $inferenceOutput = ''
+          foreach ($line in ($output -split "`n")) {
+            if ($line -match 'INFERENCE_OUTPUT=(.*)') {
+              $inferenceOutput = $Matches[1].Trim()
+            }
+          }
+          Write-Host "Inference test passed. Output tokens: $inferenceOutput"
+          Write-Host "Full output:`n$output"
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          "output_tokens=$inferenceOutput" >> $env:GITHUB_OUTPUT
+
+      - name: 'Smoke-test: Green forensics summary'
+        if: success()
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
+          $importPath = & $venvPython -c "import llama_cpp; print(llama_cpp.__file__)" 2>&1
+          $installedVersion = & $venvPython -c "import llama_cpp; print(llama_cpp.__version__)" 2>&1
+
+          $summary = @"
+          ## Smoke Test Green — Runtime Verification
+
+          | Property | Value |
+          |---|---|
+          | Wheel filename | ``${{ steps.install-wheel.outputs.wheel_name }}`` |
+          | Installed version | ``$installedVersion`` |
+          | Import path | ``$importPath`` |
+          | cuobjdump architectures | ``${{ steps.cuobjdump-check.outputs.arch_list }}`` |
+          | Venv Python | ``$venvPython`` |
+          | Inference exit code | ``${{ steps.inference-test.outputs.exit_code }}`` |
+          | Output tokens | ``${{ steps.inference-test.outputs.output_tokens }}`` |
+          | Python version | ``${{ inputs.python_version }}`` |
+          | CUDA version | ``${{ inputs.cuda_version }}`` |
+
+          _This smoke test proves the wheel loads a model and runs inference without crashing. A segfaulting wheel (upstream #1543) would turn this job red, blocking publish._
+          "@
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Host $summary
+
+      - name: 'Smoke-test: Red diagnostics'
+        if: failure()
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'SilentlyContinue'
+
+          $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
+
+          # Collect diagnostics -- SilentlyContinue so this step doesn't fail itself.
+          $pipList = & $venvPython -m pip list 2>&1 | Out-String
+          $systemPython = (Get-Command python -ErrorAction SilentlyContinue).Source
+          $venvPythonPath = $venvPython
+          $pathEntries = ($env:PATH -split ';') | Select-Object -First 15
+
+          # Attempt import path resolution (may fail)
+          $importPath = & $venvPython -c "import llama_cpp; print(llama_cpp.__file__)" 2>&1 | Out-String
+
+          # Search for ggml-cuda.dll
+          $dllSearch = ''
+          $venvRoot = Resolve-Path '.smoke-venv' -ErrorAction SilentlyContinue
+          if ($venvRoot) {
+            $dllSearch = Get-ChildItem -Path $venvRoot -Recurse -Filter 'ggml-cuda.dll' -ErrorAction SilentlyContinue |
+              ForEach-Object { $_.FullName } | Out-String
+          }
+
+          # cuobjdump output if DLL found
+          $cuobjdumpOutput = ''
+          $sitePackages = & $venvPython -c "import site; print(site.getsitepackages()[0])" 2>&1
+          $dllPath = Join-Path $sitePackages 'llama_cpp\lib\ggml-cuda.dll' -ErrorAction SilentlyContinue
+          if (Test-Path $dllPath -ErrorAction SilentlyContinue) {
+            $cuobjdumpOutput = cuobjdump --list-elf $dllPath 2>&1 | Out-String
+          }
+
+          $diag = @"
+          ## Smoke Test FAILED — Diagnostics
+
+          ### Python paths
+          | Property | Value |
+          |---|---|
+          | System python | ``$systemPython`` |
+          | Venv python | ``$venvPythonPath`` |
+
+          ### Import resolution
+          ``````
+          $importPath
+          ``````
+
+          ### ggml-cuda.dll search
+          ``````
+          $dllSearch
+          ``````
+
+          ### cuobjdump output
+          ``````
+          $cuobjdumpOutput
+          ``````
+
+          ### pip list (venv)
+          ``````
+          $pipList
+          ``````
+
+          ### PATH (first 15 entries)
+          ``````
+          $($pathEntries -join "`n")
+          ``````
+
+          ### Dispatch inputs
+          | Input | Value |
+          |---|---|
+          | python_version | ``${{ inputs.python_version }}`` |
+          | cuda_version | ``${{ inputs.cuda_version }}`` |
+          | msvc_toolset | ``${{ inputs.msvc_toolset }}`` |
+
+          _If the inference test shows exit code -1073741819 (0xC0000005), the wheel segfaults at runtime. This is the exact failure mode this fork was created to prevent (upstream #1543)._
+          "@
+          $diag | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Host $diag
+
+      - name: 'Smoke-test: Save mamba pkgs cache'
+        if: always()
+        uses: actions/cache/save@v4
+        timeout-minutes: 5
+        with:
+          path: ${{ env.MAMBA_ROOT_PREFIX }}/pkgs
+          key: ${{ steps.cache-mamba-smoke-restore.outputs.cache-primary-key }}
 
   # lint-workflow runs on ubuntu-latest in parallel with preflight (no `needs:`).
   # Two cheap static checks:
