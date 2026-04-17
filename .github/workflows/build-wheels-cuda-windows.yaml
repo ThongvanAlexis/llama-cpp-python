@@ -1298,7 +1298,6 @@ jobs:
           lib_dir = sp / 'llama_cpp' / 'lib'
           bin_dir = sp / 'bin'
           cuda_bin = os.environ.get('CUDA_PATH', '')
-          # Add all potential DLL directories
           for d in [lib_dir, bin_dir]:
               if d.exists():
                   os.add_dll_directory(str(d))
@@ -1308,7 +1307,6 @@ jobs:
               cb = os.path.join(cuda_bin, 'bin')
               os.add_dll_directory(cb)
               print(f'  Added CUDA: {cb}')
-          # Try loading each DLL from lib/
           if lib_dir.exists():
               for dll in sorted(lib_dir.glob('*.dll')):
                   try:
@@ -1316,6 +1314,68 @@ jobs:
                       print(f'  OK:   {dll.name}')
                   except Exception as e:
                       print(f'  FAIL: {dll.name} -> {e}')
+          "@
+
+            Write-Host "`n--- Deep dependency audit (pefile) ---"
+            & $venvPython -m pip install pefile --quiet 2>&1 | Out-Null
+            & $venvPython -c @"
+          import pefile, pathlib, os, sysconfig
+          sp = pathlib.Path(sysconfig.get_path('platlib'))
+          lib_dir = sp / 'llama_cpp' / 'lib'
+          cuda_bin = pathlib.Path(os.environ.get('CUDA_PATH','')) / 'bin'
+          search = [lib_dir, sp / 'bin', cuda_bin, pathlib.Path(r'C:\Windows\System32')]
+
+          def find_dll(name):
+              for d in search:
+                  p = d / name
+                  if p.exists(): return p
+              return None
+
+          def get_exports(path):
+              try:
+                  pe = pefile.PE(str(path), fast_load=True)
+                  pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_EXPORT']])
+                  exports = set()
+                  if hasattr(pe, 'DIRECTORY_ENTRY_EXPORT'):
+                      for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
+                          if exp.name: exports.add(exp.name.decode('utf-8','ignore'))
+                  pe.close()
+                  return exports
+              except: return set()
+
+          # Check ggml-cuda.dll — the first DLL that fails
+          target = lib_dir / 'ggml-cuda.dll'
+          if not target.exists():
+              print('ggml-cuda.dll not found'); exit()
+          pe = pefile.PE(str(target), fast_load=True)
+          pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']])
+          if not hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+              print('No imports found in ggml-cuda.dll'); exit()
+          for entry in pe.DIRECTORY_ENTRY_IMPORT:
+              dll_name = entry.dll.decode('utf-8','ignore')
+              dll_path = find_dll(dll_name)
+              status = 'FOUND' if dll_path else 'MISSING'
+              print(f'  {dll_name}: {status} ({dll_path})')
+              if dll_path and status == 'FOUND':
+                  exports = get_exports(dll_path)
+                  missing = []
+                  for imp in entry.imports:
+                      if imp.name:
+                          fn = imp.name.decode('utf-8','ignore')
+                          if fn not in exports:
+                              missing.append(fn)
+                  if missing:
+                      print(f'    MISSING EXPORTS ({len(missing)}):')
+                      for fn in missing[:20]:
+                          print(f'      - {fn}')
+                      if len(missing) > 20:
+                          print(f'      ... and {len(missing)-20} more')
+                  else:
+                      print(f'    All {len(entry.imports)} imports satisfied')
+              elif not dll_path:
+                  fns = [imp.name.decode('utf-8','ignore') for imp in entry.imports if imp.name]
+                  print(f'    Needs: {", ".join(fns[:5])}...')
+          pe.close()
           "@
 
             Write-Host "`n--- CUDA DLLs in conda Library\bin ---"
