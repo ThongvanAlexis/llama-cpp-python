@@ -1048,6 +1048,77 @@ jobs:
           Write-Host "Setting CUDA_PATH: $cudaRoot"
           "CUDA_PATH=$cudaRoot" >> $env:GITHUB_ENV
 
+      - name: 'Smoke-test: Create nvcuda.dll stub (no GPU driver on runner)'
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # ggml-cuda.dll → cudart64_12.dll → nvcuda.dll (GPU driver).
+          # GitHub runners have no NVIDIA GPU, so nvcuda.dll is absent.
+          # Without it, the entire CUDA DLL chain fails to load at import time
+          # (even for CPU-only inference with n_gpu_layers=0).
+          #
+          # Solution: build a minimal stub nvcuda.dll whose exports return
+          # CUDA_ERROR_NO_DEVICE (100). The DLL import table is satisfied,
+          # cudart initializes, discovers "no device", and CPU fallback works.
+
+          $cudaBin = Join-Path $env:CONDA_PREFIX 'Library\bin'
+          $stubDir = Join-Path $env:RUNNER_TEMP 'nvcuda-stub'
+          New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
+
+          # Write minimal C source — every exported function returns error 100.
+          @"
+          #include <windows.h>
+          #define CUDA_ERROR_NO_DEVICE 100
+          typedef int CUresult;
+          BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r) { return TRUE; }
+          __declspec(dllexport) CUresult cuInit(unsigned int f) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuDriverGetVersion(int* v) { if(v)*v=0; return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuDeviceGetCount(int* c) { if(c)*c=0; return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuDeviceGet(void* d, int o) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuDeviceGetName(char* n, int l, void* d) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuDeviceGetAttribute(int* v, int a, void* d) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuDeviceTotalMem_v2(unsigned long long* b, void* d) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuCtxCreate_v2(void** c, unsigned int f, void* d) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuCtxDestroy_v2(void* c) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuCtxGetCurrent(void** c) { if(c)*c=0; return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuCtxSetCurrent(void* c) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuCtxSynchronize(void) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuMemAlloc_v2(void** p, unsigned long long s) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuMemFree_v2(void* p) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuMemcpyDtoH_v2(void* d, void* s, unsigned long long c) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuMemcpyHtoD_v2(void* d, void* s, unsigned long long c) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuModuleLoadData(void** m, void* i) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuModuleUnload(void* m) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuModuleGetFunction(void** f, void* m, char* n) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuLaunchKernel(void* f, unsigned int gx, unsigned int gy, unsigned int gz, unsigned int bx, unsigned int by, unsigned int bz, unsigned int sm, void* s, void** a, void** e) { return CUDA_ERROR_NO_DEVICE; }
+          __declspec(dllexport) CUresult cuGetErrorString(int e, const char** s) { if(s)*s="stub: no device"; return 0; }
+          __declspec(dllexport) CUresult cuGetErrorName(int e, const char** s) { if(s)*s="CUDA_ERROR_NO_DEVICE"; return 0; }
+          "@ | Out-File -FilePath "$stubDir\nvcuda_stub.c" -Encoding ascii
+
+          # Find MSVC cl.exe (available on windows-2022 runner image)
+          $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vcvarsall = Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'
+
+          # Build stub DLL via cl.exe in x64 environment
+          $buildScript = @"
+          call "$vcvarsall" x64
+          cl /nologo /LD "$stubDir\nvcuda_stub.c" /Fe"$stubDir\nvcuda.dll" /link /DLL /OUT:"$stubDir\nvcuda.dll"
+          "@
+          $buildScript | Out-File -FilePath "$stubDir\build.bat" -Encoding ascii
+          cmd /c "$stubDir\build.bat"
+          if (-not (Test-Path "$stubDir\nvcuda.dll")) {
+            throw "Failed to build nvcuda.dll stub"
+          }
+
+          # Place stub on CUDA DLL path so cudart64_12.dll can find it
+          Copy-Item "$stubDir\nvcuda.dll" "$cudaBin\nvcuda.dll"
+          Write-Host "OK: nvcuda.dll stub placed at $cudaBin\nvcuda.dll"
+          Write-Host "Exports return CUDA_ERROR_NO_DEVICE (100) — CPU fallback will work"
+
       - name: 'Smoke-test: Disable WER crash dialog'
         shell: pwsh
         timeout-minutes: 2
