@@ -11,7 +11,7 @@ This v1 delivers a GitHub Actions workflow that produces a runtime-verified Wind
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Scaffold & Toolchain Pinning** - New Windows-only workflow file with MSVC auto-select from CUDA compat matrix and CUDA toolkit unified behind one install path (completed 2026-04-16)
-- [ ] **Phase 2: Build & Cache** - scikit-build-core produces a correctly-tagged, size-bounded wheel with three-tier save-on-failure caches
+- [x] **Phase 2: Build & Cache** - scikit-build-core produces a correctly-tagged, size-bounded wheel with three-tier save-on-failure caches (completed 2026-04-17)
 - [ ] **Phase 3: Smoke Test (Publish Gate)** - Fresh-runner job installs the wheel and asserts `Llama(...)` runs without segfault; publish blocked if red
 - [ ] **Phase 4: Publish & Consumer UX** - PEP 503 index on gh-pages, release assets, post-publish probe, and README install docs
 
@@ -47,8 +47,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Build body + cache wiring: vcvarsall activation, CMAKE_ARGS (Ninja, sccache, /Z7, CUDA archs), version override with SHA, mamba split cache with save-on-failure, sccache setup, per-step timeouts (BLD-01..09, BLD-12)
-- [ ] 02-02-PLAN.md — Post-build assertions + artifact upload + dispatch verification: wheel tag regex guard, size check, upload-artifact, end-to-end dispatch [human-verify checkpoint] (BLD-10, BLD-11, BLD-13)
+- [x] 02-01-PLAN.md — Build body + cache wiring: vcvarsall activation, CMAKE_ARGS (Ninja, sccache, /Z7, CUDA archs), version override with SHA, mamba split cache with save-on-failure, sccache setup, per-step timeouts (BLD-01..09, BLD-12)
+- [x] 02-02-PLAN.md — Post-build assertions + artifact upload + dispatch verification: wheel tag regex guard, size check, upload-artifact, end-to-end dispatch [human-verify checkpoint] (BLD-10, BLD-11, BLD-13)
 
 ### Phase 3: Smoke Test (Publish Gate)
 **Goal**: A separate `smoke-test` job on a fresh `windows-2022` runner, sparse-checked-out to exclude `llama_cpp/` source, installs the built wheel into a clean venv and proves it loads a 27 KB GGUF fixture and generates 2 tokens without crashing; the publish job declares `needs: [build, smoke-test]` so a red smoke test is structurally incapable of reaching gh-pages.
@@ -89,7 +89,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Scaffold & Toolchain Pinning | 3/3 | Complete | 2026-04-16 |
-| 2. Build & Cache | 0/2 | Planned | - |
+| 2. Build & Cache | 2/2 | Complete | 2026-04-17 |
 | 3. Smoke Test (Publish Gate) | 0/TBD | Not started | - |
 | 4. Publish & Consumer UX | 0/TBD | Not started | - |
 

@@ -37,10 +37,10 @@
 - [x] **BLD-07**: VS CUDA integration extensions are cached (key `cuda-${cuda_version}-vs-integration`), saved `if: always()`
 - [x] **BLD-08**: Build uses Ninja generator with `CMAKE_BUILD_PARALLEL_LEVEL` set appropriately for the runner
 - [x] **BLD-09**: Each job step has a `timeout-minutes` bound to prevent 6h runner-timeout surprises
-- [ ] **BLD-10**: Produced wheel is tagged correctly: `llama_cpp_python-<version>-cp<pyver>-cp<pyver>-win_amd64.whl` (never `abi3` or `none-any`); wheel-tag regex assertion guards against drift
-- [ ] **BLD-11**: Wheel size is under 400 MB; CI fails if the produced wheel exceeds that
+- [x] **BLD-10**: Produced wheel is tagged correctly: `llama_cpp_python-<version>-cp<pyver>-cp<pyver>-win_amd64.whl` (never `abi3` or `none-any`); wheel-tag regex assertion guards against drift
+- [x] **BLD-11**: Wheel size is under 400 MB; CI fails if the produced wheel exceeds that
 - [x] **BLD-12**: Wheel version embeds the llama.cpp submodule short SHA (e.g., `0.3.20+cu126.ll<sha>`) for reproducibility
-- [ ] **BLD-13**: Wheel is uploaded as a GitHub Actions artifact via `actions/upload-artifact@v4` for downstream job consumption
+- [x] **BLD-13**: Wheel is uploaded as a GitHub Actions artifact via `actions/upload-artifact@v4` for downstream job consumption
 
 ### Smoke Test (Publish Gate)
 
@@ -148,10 +148,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 | BLD-07 | Phase 2 | Complete |
 | BLD-08 | Phase 2 | Complete |
 | BLD-09 | Phase 2 | Complete |
-| BLD-10 | Phase 2 | Pending |
-| BLD-11 | Phase 2 | Pending |
+| BLD-10 | Phase 2 | Complete |
+| BLD-11 | Phase 2 | Complete |
 | BLD-12 | Phase 2 | Complete |
-| BLD-13 | Phase 2 | Pending |
+| BLD-13 | Phase 2 | Complete |
 | ST-01 | Phase 3 | Pending |
 | ST-02 | Phase 3 | Pending |
 | ST-03 | Phase 3 | Pending |

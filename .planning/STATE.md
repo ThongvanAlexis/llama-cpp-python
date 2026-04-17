@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-04-16T15:04:20.000Z"
-last_activity: 2026-04-16 — Phase 2 Plan 01 complete. Added 7 build steps to workflow (vcvarsall+build, sccache, mamba cache, BuildCustomizations copy). BLD-01 through BLD-09, BLD-12 structurally complete. Plan 02 (assertions + upload) next.
+stopped_at: Completed 02-02-PLAN.md (Phase 2 complete)
+last_updated: "2026-04-17T07:45:35.000Z"
+last_activity: 2026-04-17 — Phase 2 COMPLETE. Plan 02 added wheel tag/size assertions + artifact upload, verified end-to-end via dispatch. All 13 BLD-* requirements verified green. 6 empirical fixes during dispatch iteration (job rename, VS BuildCustomizations source, nvcc parallel, timeout, wheel tag, sccache key). Ready for Phase 3 (Smoke Test).
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -25,38 +25,39 @@ See: .planning/PROJECT.md (updated 2026-04-15)
 
 ## Current Position
 
-Phase: 2 of 4 (Build & Cache)
-Plan: 1 of 2 in current phase (Plan 01 complete)
-Status: Executing Phase 2
-Last activity: 2026-04-16 — Phase 2 Plan 01 complete. Added 7 build steps to workflow (vcvarsall+build, sccache, mamba cache, BuildCustomizations copy). BLD-01 through BLD-09, BLD-12 structurally complete. Plan 02 (assertions + upload) next.
+Phase: 2 of 4 (Build & Cache) -- COMPLETE
+Plan: 2 of 2 in current phase (Phase 2 complete)
+Status: Phase 2 complete. Ready for Phase 3 (Smoke Test).
+Last activity: 2026-04-17 — Phase 2 COMPLETE. Plan 02 added wheel tag/size assertions + artifact upload, verified end-to-end via dispatch. All 13 BLD-* requirements verified green. Ready for Phase 3.
 
-Progress: [████████░░] 80% (Phase 2, Plan 1/2)
+Progress: [██████████] 100% (Phase 2 complete, 5/5 plans across Phases 1-2)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: ~9.3h (skewed by Plan 02's 6-dispatch empirical discovery cycle)
-- Total execution time: ~28.1 hours
+- Total plans completed: 5
+- Average duration: ~6.5h (skewed by Phase 1 Plan 02's 6-dispatch empirical discovery cycle)
+- Total execution time: ~32+ hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Scaffold & Toolchain Pinning | 3/3 | ~28.1h | ~9.3h |
-| 2. Build & Cache | 1/2 | ~4 min | ~4 min |
+| 2. Build & Cache | 2/2 | ~multi-session | ~variable |
 | 3. Smoke Test (Publish Gate) | 0 | — | — |
 | 4. Publish & Consumer UX | 0 | — | — |
 
 **Recent Trend:**
-- Last 5 plans: P01 (2 min), P02 (~24h multi-session), P03 (~4h)
-- Trend: Plan 02 was unusually long due to empirical discovery of runner constraints (6 dispatches). Plan 03 was faster (forensics + docs with 1 dispatch iteration). Phase 1 complete.
+- Last 5 plans: P1-02 (~24h multi-session), P1-03 (~4h), P2-01 (~4 min), P2-02 (multi-session with 6+ dispatch fix iterations)
+- Trend: Phase 2 Plan 02 required multiple dispatch iterations for empirical discovery (VS BuildCustomizations, sccache OOM, timeouts, wheel tag, cache keys). This is expected for dispatch-verification checkpoints.
 
 *Updated after each plan completion*
 | Phase 01-scaffold-toolchain-pinning P01 | 2 min | 1 tasks | 1 files |
 | Phase 01-scaffold-toolchain-pinning P02 | ~24h | 3 tasks | 1 files |
 | Phase 01-scaffold-toolchain-pinning P03 | ~4h | 3 tasks | 1 files |
 | Phase 02-build-cache P01 | ~4 min | 2 tasks | 1 files |
+| Phase 02-build-cache P02 | ~multi-session | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -83,7 +84,12 @@ Recent decisions affecting current work (from PROJECT.md + research):
 - [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Plan 03 forensics summary uses `$env:CONDA_PREFIX\Library` for CUDA path (not `$env:CUDA_PATH`) because mamba CUDA install sets CONDA_PREFIX but not CUDA_PATH. Phase 2 should use the same pattern for any CUDA path references.
 - [Phase 01-scaffold-toolchain-pinning 2026-04-16]: Phase 1 COMPLETE. All 16 requirements verified (WF-01..05, TC-01..10, DOC-04). Workflow file has 15 preflight steps + 2-step lint-workflow job. Forensics summary renders 11-property table in Actions UI Summary tab on green; remediation hint block on red. DOC-04 comments at 4 locked sites with ban-grep-safe paraphrases.
 
-- [Phase 02-build-cache 2026-04-16]: Job renamed `preflight` → `build` in workflow YAML. The job now contains both toolchain preflight assertions AND build steps, so "preflight" was misleading. All future references should use job ID `build` (not `preflight`).
+- [Phase 02-build-cache 2026-04-16]: Job renamed `preflight` -> `build` in workflow YAML. The job now contains both toolchain preflight assertions AND build steps, so "preflight" was misleading. All future references should use job ID `build` (not `preflight`).
+- [Phase 02-build-cache 2026-04-17]: `-C wheel.py-api=""` config-setting on `python -m build` is the CORRECT way to override pyproject.toml's `wheel.py-api = "py3"`. The `SKBUILD_WHEEL_PY_API=''` env var approach does NOT work because scikit-build-core ignores empty string environment variables.
+- [Phase 02-build-cache 2026-04-17]: CMAKE_BUILD_PARALLEL_LEVEL=1 (not 2). Parallel nvcc with 5 CUDA arch targets kills the sccache daemon (OS error 10054 / connection reset) on the 4-vCPU runner. Sequential is slower (~120 min cold) but reliable.
+- [Phase 02-build-cache 2026-04-17]: sccache `append-timestamp: false` is REQUIRED for cache reuse across runs. Without it, hendrikmuhs/ccache-action appends a timestamp making every cache key unique.
+- [Phase 02-build-cache 2026-04-17]: Build step timeout must be 180 min (cold CUDA build with 5 arch targets + parallel=1). Job timeout 210 min. Original estimates (60/90) were far too low.
+- [Phase 02-build-cache 2026-04-17]: Phase 2 COMPLETE. End-to-end verified: `llama_cpp_python-0.3.20+cu126.ll227ed28e128e-cp311-cp311-win_amd64.whl` (358 MB). All 13 BLD-* requirements green. Artifact name `cuda-wheel` is the contract for Phase 3 download-artifact.
 
 - [Phase 02-build-cache 2026-04-16]: VS BuildCustomizations (CUDA .props/.targets) come from Jimver CUDA installer download + 7-Zip extraction, NOT from mamba's cuda-toolkit package (mamba does not ship visual_studio_integration files). Matches the old build-wheels-cuda.yaml approach. Not cached per CONTEXT.md — download+extract ~12s per run.
 - [Phase 02-build-cache 2026-04-16]: vcvarsall activation INLINE in build step (not dedicated step) -- env vars don't persist across GH Actions steps. Uses probe-msvc outputs (install_path + selected_full_version) to locate vcvarsall.bat.
@@ -111,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T15:04:20.000Z
-Stopped at: Completed 02-01-PLAN.md
-Resume file: .planning/phases/02-build-cache/02-01-SUMMARY.md
+Last session: 2026-04-17T07:45:35.000Z
+Stopped at: Completed 02-02-PLAN.md (Phase 2 complete)
+Resume file: .planning/phases/02-build-cache/02-02-SUMMARY.md
