@@ -1060,98 +1060,94 @@ jobs:
           # Without it, the entire CUDA DLL chain fails to load at import time
           # (even for CPU-only inference with n_gpu_layers=0).
           #
-          # Solution: scan cudart64_12.dll (and other CUDA DLLs) with dumpbin
-          # to discover every function they import from nvcuda.dll, then build
-          # a stub that exports all of them returning CUDA_ERROR_NO_DEVICE (100).
-          # On x64 Windows, a void-returning stub is safe regardless of the real
-          # calling signature — caller manages the stack.
+          # Solution: use Python to parse PE import tables of all CUDA DLLs,
+          # discover every function imported from nvcuda.dll, then build a stub
+          # that exports all of them returning CUDA_ERROR_NO_DEVICE (100).
 
           $cudaBin = Join-Path $env:CONDA_PREFIX 'Library\bin'
           $stubDir = Join-Path $env:RUNNER_TEMP 'nvcuda-stub'
           New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
 
-          # Setup MSVC environment
+          # Use Python to parse PE imports — more reliable than dumpbin text parsing.
+          # pip install pefile into the conda env (not the smoke-venv).
+          python -m pip install pefile --quiet
+          python -c @"
+          import pefile, pathlib, json
+          cuda_bin = pathlib.Path(r'$cudaBin')
+          functions = set()
+          for dll_path in sorted(cuda_bin.glob('*.dll')):
+              try:
+                  pe = pefile.PE(str(dll_path), fast_load=True)
+                  pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']])
+                  if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+                      for entry in pe.DIRECTORY_ENTRY_IMPORT:
+                          if entry.dll and entry.dll.decode('utf-8','ignore').lower() == 'nvcuda.dll':
+                              for imp in entry.imports:
+                                  if imp.name:
+                                      functions.add(imp.name.decode('utf-8','ignore'))
+                  pe.close()
+              except Exception:
+                  pass
+          out = pathlib.Path(r'$stubDir') / 'nvcuda_imports.json'
+          out.write_text(json.dumps(sorted(functions)))
+          print(f'Discovered {len(functions)} functions imported from nvcuda.dll')
+          "@
+
+          $imports = Get-Content "$stubDir\nvcuda_imports.json" | ConvertFrom-Json
+          Write-Host "Functions to stub: $($imports.Count)"
+
+          if ($imports.Count -eq 0) {
+            # Fallback: cudart may load nvcuda.dll dynamically via LoadLibrary.
+            # Use the cuda.lib import library to extract export names instead.
+            Write-Host "No PE imports found — trying cuda.lib from CUDA toolkit..."
+            $cudaLib = Join-Path $env:CONDA_PREFIX 'Library\lib\x64\cuda.lib'
+            if (-not (Test-Path $cudaLib)) {
+              $cudaLib = Join-Path $env:CONDA_PREFIX 'Library\lib\cuda.lib'
+            }
+            if (Test-Path $cudaLib) {
+              # Setup MSVC for dumpbin
+              $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+              $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+              $vcvarsall = Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'
+
+              $libScript = "call `"$vcvarsall`" x64 >nul 2>&1 && dumpbin /linkermember:1 `"$cudaLib`""
+              $libOutput = cmd /c $libScript 2>&1 | Out-String
+              $imports = @()
+              foreach ($line in ($libOutput -split "`n")) {
+                if ($line.Trim() -match '^\s*[0-9A-Fa-f]+\s+(cu\w+)') {
+                  $imports += $Matches[1]
+                }
+              }
+              $imports = $imports | Sort-Object -Unique
+              Write-Host "Extracted $($imports.Count) symbols from cuda.lib"
+            }
+          }
+
+          if ($imports.Count -eq 0) {
+            throw "Cannot discover nvcuda.dll exports from PE imports or cuda.lib"
+          }
+
+          # Generate C source — every export returns 100 (CUDA_ERROR_NO_DEVICE).
+          # On x64 Windows, a no-arg stub is safe regardless of real signature.
+          $lines = @('#include <windows.h>')
+          $lines += 'BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r) { return TRUE; }'
+          foreach ($fn in $imports) {
+            $lines += "__declspec(dllexport) int $fn() { return 100; }"
+          }
+          ($lines -join "`n") | Out-File -FilePath "$stubDir\nvcuda_stub.c" -Encoding ascii
+
+          # Find MSVC and build
           $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           $vcvarsall = Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'
-
-          # Discover all functions imported from nvcuda.dll by CUDA toolkit DLLs.
-          # Use dumpbin /imports on every DLL in Library\bin.
-          $discoverScript = @"
-          @echo off
-          call "$vcvarsall" x64 >nul 2>&1
-          for %%f in ("$cudaBin\*.dll") do (
-            dumpbin /imports "%%f" 2>nul | findstr /i "nvcuda.dll" >nul 2>&1
-            if not errorlevel 1 (
-              dumpbin /imports "%%f" 2>nul
-            )
-          )
-          "@
-          $discoverScript | Out-File -FilePath "$stubDir\discover.bat" -Encoding ascii
-          $dumpOutput = cmd /c "$stubDir\discover.bat" 2>&1 | Out-String
-
-          # Parse dumpbin output to extract function names imported from nvcuda.dll.
-          # dumpbin /imports format:
-          #   nvcuda.dll
-          #     <ordinal> <hint> <name>
-          #   (blank line ends section)
-          $inNvcuda = $false
-          $functions = [System.Collections.Generic.HashSet[string]]::new()
-          foreach ($line in ($dumpOutput -split "`n")) {
-            $trimmed = $line.Trim()
-            if ($trimmed -match '^nvcuda\.dll$') {
-              $inNvcuda = $true
-              continue
-            }
-            if ($inNvcuda) {
-              if ($trimmed -eq '' -or $trimmed -match '^\S+\.dll$') {
-                $inNvcuda = $false
-                continue
-              }
-              # Match function name: hex_ordinal hex_hint function_name
-              if ($trimmed -match '^\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\w+)') {
-                $functions.Add($Matches[1]) | Out-Null
-              }
-              # Also match: just a function name (some dumpbin formats)
-              elseif ($trimmed -match '^\s+(\w+)$') {
-                $functions.Add($Matches[1]) | Out-Null
-              }
-            }
-          }
-
-          Write-Host "Discovered $($functions.Count) functions imported from nvcuda.dll"
-          if ($functions.Count -eq 0) {
-            throw "No nvcuda.dll imports found in CUDA DLLs at $cudaBin — cannot create stub"
-          }
-
-          # Generate C source with stubs for every discovered function.
-          # On x64 Windows (fastcall ABI), returning int is safe for any signature.
-          $cSource = @"
-          #include <windows.h>
-          BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r) { return TRUE; }
-
-          "@
-          foreach ($fn in ($functions | Sort-Object)) {
-            $cSource += "__declspec(dllexport) int $fn() { return 100; }`n"
-          }
-          $cSource | Out-File -FilePath "$stubDir\nvcuda_stub.c" -Encoding ascii
-
-          # Build stub DLL
-          $buildScript = @"
-          call "$vcvarsall" x64
-          cl /nologo /O2 /LD "$stubDir\nvcuda_stub.c" /Fe"$stubDir\nvcuda.dll" /link /DLL /OUT:"$stubDir\nvcuda.dll"
-          "@
-          $buildScript | Out-File -FilePath "$stubDir\build.bat" -Encoding ascii
-          cmd /c "$stubDir\build.bat"
+          $buildCmd = "call `"$vcvarsall`" x64 && cl /nologo /O2 /LD `"$stubDir\nvcuda_stub.c`" /Fe`"$stubDir\nvcuda.dll`" /link /DLL"
+          cmd /c $buildCmd
           if (-not (Test-Path "$stubDir\nvcuda.dll")) {
             throw "Failed to build nvcuda.dll stub"
           }
 
-          # Place stub on CUDA DLL path so cudart64_12.dll can find it
           Copy-Item "$stubDir\nvcuda.dll" "$cudaBin\nvcuda.dll"
-          $exportCount = (cmd /c "dumpbin /exports ""$cudaBin\nvcuda.dll""" 2>&1 | Select-String '^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+\w+').Count
-          Write-Host "OK: nvcuda.dll stub placed at $cudaBin\nvcuda.dll ($exportCount exports)"
-          Write-Host "All exports return CUDA_ERROR_NO_DEVICE (100) — CPU fallback will work"
+          Write-Host "OK: nvcuda.dll stub ($($imports.Count) exports) placed at $cudaBin\nvcuda.dll"
 
       - name: 'Smoke-test: Disable WER crash dialog'
         shell: pwsh
