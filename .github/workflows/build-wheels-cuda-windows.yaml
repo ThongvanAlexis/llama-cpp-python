@@ -835,7 +835,36 @@ jobs:
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
-          sccache --show-stats
+
+          $stats = sccache --show-stats 2>&1 | Out-String
+          Write-Host $stats
+
+          # ── Cache health alert ──
+          # Detect silent cache thrashing: cache "works" but eviction kills hit rate.
+          $hitRate = if ($stats -match 'Cache hits rate\s+([\d.]+)\s*%') { [double]$Matches[1] } else { -1 }
+          $cacheSize = if ($stats -match 'Cache size\s+(\d+)\s*MiB') { [int]$Matches[1] } else { 0 }
+          $maxSize = if ($stats -match 'Max cache size\s+(\d+)\s*(?:MiB|GiB)') {
+            $val = [int]$Matches[1]
+            if ($stats -match 'Max cache size\s+\d+\s*GiB') { $val * 1024 } else { $val }
+          } else { 0 }
+          $totalCompiles = if ($stats -match 'Compilations\s+(\d+)') { [int]$Matches[1] } else { 0 }
+
+          if ($hitRate -ge 0 -and $totalCompiles -gt 50) {
+            $usagePct = if ($maxSize -gt 0) { [math]::Round(($cacheSize / $maxSize) * 100) } else { 0 }
+            Write-Host "`n── sccache health: hit_rate=${hitRate}% cache_usage=${usagePct}% (${cacheSize}/${maxSize} MiB) ──"
+
+            if ($hitRate -lt 50 -and $usagePct -gt 90) {
+              $msg = @"
+          ⚠ SCCACHE ALERT: ${hitRate}% hit rate with cache ${usagePct}% full (${cacheSize}/${maxSize} MiB).
+          Cache is likely thrashing — objects evicted before reuse.
+          Increase max-size in the 'Setup sccache' step (GitHub allows 10 GB/repo).
+          "@
+              Write-Host $msg
+              $msg | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            } elseif ($hitRate -lt 20) {
+              Write-Host "⚠ sccache hit rate is ${hitRate}% — may indicate flag mismatch or first build after cache key change."
+            }
+          }
 
       - name: 'Preflight: Emit forensics summary'
         if: success()
@@ -1109,6 +1138,20 @@ jobs:
           Write-Host "OK: wheel installed successfully"
           "wheel_name=$($wheel.Name)" >> $env:GITHUB_OUTPUT
 
+          # Export DLL directories from the installed wheel so later steps can
+          # load llama.dll and its dependencies. scikit-build-core installs DLLs
+          # to both llama_cpp/lib/ and bin/ — both must be searchable.
+          $spDir = & $venvPython -c "import sysconfig; print(sysconfig.get_path('platlib'))"
+          $libDir = Join-Path $spDir 'llama_cpp\lib'
+          $binDir = Join-Path $spDir 'bin'
+          $addPath = @()
+          if (Test-Path $libDir) { $addPath += $libDir; Write-Host "DLL path: $libDir" }
+          if (Test-Path $binDir) { $addPath += $binDir; Write-Host "DLL path: $binDir" }
+          if ($addPath.Count -gt 0) {
+            $newEntries = ($addPath -join ';')
+            "PATH=$newEntries;$env:PATH" >> $env:GITHUB_ENV
+          }
+
       - name: 'Smoke-test: Assert import resolves to site-packages'
         shell: pwsh
         timeout-minutes: 2
@@ -1123,8 +1166,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             # ── Forensic: identify which DLL dependency is missing ──
             Write-Host "`n=== FORENSIC: DLL load failure diagnostics ==="
-            $sitePackages = & $venvPython -c "import site; print(site.getsitepackages()[0])" 2>&1
-            $libDir = Join-Path $sitePackages 'llama_cpp\lib'
+            $spDir = & $venvPython -c "import sysconfig; print(sysconfig.get_path('platlib'))" 2>&1
+            $libDir = Join-Path $spDir 'llama_cpp\lib'
+            $binDir = Join-Path $spDir 'bin'
+
+            Write-Host "`n--- site-packages path: $spDir ---"
 
             Write-Host "`n--- Files in llama_cpp\lib\ ---"
             if (Test-Path $libDir) {
@@ -1135,23 +1181,40 @@ jobs:
               Write-Host "  DIRECTORY NOT FOUND: $libDir"
             }
 
+            Write-Host "`n--- Files in site-packages\bin\ ---"
+            if (Test-Path $binDir) {
+              Get-ChildItem -Path $binDir -Filter '*.dll' | ForEach-Object {
+                Write-Host ("  {0}  ({1:N0} bytes)" -f $_.Name, $_.Length)
+              }
+            } else {
+              Write-Host "  NOT FOUND (OK if all DLLs are in lib\)"
+            }
+
             Write-Host "`n--- Individual DLL load test (ctypes) ---"
             & $venvPython -c @"
-          import ctypes, os, pathlib
-          lib_dir = pathlib.Path(r'$libDir')
+          import ctypes, os, pathlib, sysconfig
+          sp = pathlib.Path(sysconfig.get_path('platlib'))
+          lib_dir = sp / 'llama_cpp' / 'lib'
+          bin_dir = sp / 'bin'
           cuda_bin = os.environ.get('CUDA_PATH', '')
+          # Add all potential DLL directories
+          for d in [lib_dir, bin_dir]:
+              if d.exists():
+                  os.add_dll_directory(str(d))
+                  os.environ['PATH'] = str(d) + os.pathsep + os.environ['PATH']
+                  print(f'  Added to search: {d}')
           if cuda_bin:
-              cuda_bin = os.path.join(cuda_bin, 'bin')
-              os.add_dll_directory(cuda_bin)
-              print(f'  CUDA_PATH/bin: {cuda_bin}')
-          os.add_dll_directory(str(lib_dir))
-          os.environ['PATH'] = str(lib_dir) + os.pathsep + os.environ['PATH']
-          for dll in sorted(lib_dir.glob('*.dll')):
-              try:
-                  ctypes.CDLL(str(dll), winmode=0)
-                  print(f'  OK:   {dll.name}')
-              except Exception as e:
-                  print(f'  FAIL: {dll.name} -> {e}')
+              cb = os.path.join(cuda_bin, 'bin')
+              os.add_dll_directory(cb)
+              print(f'  Added CUDA: {cb}')
+          # Try loading each DLL from lib/
+          if lib_dir.exists():
+              for dll in sorted(lib_dir.glob('*.dll')):
+                  try:
+                      ctypes.CDLL(str(dll), winmode=0)
+                      print(f'  OK:   {dll.name}')
+                  except Exception as e:
+                      print(f'  FAIL: {dll.name} -> {e}')
           "@
 
             Write-Host "`n--- CUDA DLLs in conda Library\bin ---"
