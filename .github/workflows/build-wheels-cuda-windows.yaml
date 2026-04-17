@@ -1013,6 +1013,12 @@ jobs:
           Write-Host "Adding CUDA DLL path: $cudaBin"
           "PATH=$cudaBin;$env:PATH" >> $env:GITHUB_ENV
 
+          # Also set CUDA_PATH — llama-cpp-python's _ctypes_extensions.py checks
+          # this env var and calls os.add_dll_directory(CUDA_PATH/bin, CUDA_PATH/lib).
+          $cudaRoot = Join-Path $env:CONDA_PREFIX 'Library'
+          Write-Host "Setting CUDA_PATH: $cudaRoot"
+          "CUDA_PATH=$cudaRoot" >> $env:GITHUB_ENV
+
       - name: 'Smoke-test: Disable WER crash dialog'
         shell: pwsh
         timeout-minutes: 2
@@ -1113,8 +1119,63 @@ jobs:
           $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
 
           # ST-03 continued: import must come from site-packages, not repo checkout.
-          $importPath = & $venvPython -c "import llama_cpp; print(llama_cpp.__file__)"
-          if ($LASTEXITCODE -ne 0) { throw "import llama_cpp failed (exit $LASTEXITCODE)" }
+          $importPath = & $venvPython -c "import llama_cpp; print(llama_cpp.__file__)" 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) {
+            # ── Forensic: identify which DLL dependency is missing ──
+            Write-Host "`n=== FORENSIC: DLL load failure diagnostics ==="
+            $sitePackages = & $venvPython -c "import site; print(site.getsitepackages()[0])" 2>&1
+            $libDir = Join-Path $sitePackages 'llama_cpp\lib'
+
+            Write-Host "`n--- Files in llama_cpp\lib\ ---"
+            if (Test-Path $libDir) {
+              Get-ChildItem -Path $libDir | ForEach-Object {
+                Write-Host ("  {0}  ({1:N0} bytes)" -f $_.Name, $_.Length)
+              }
+            } else {
+              Write-Host "  DIRECTORY NOT FOUND: $libDir"
+            }
+
+            Write-Host "`n--- Individual DLL load test (ctypes) ---"
+            & $venvPython -c @"
+          import ctypes, os, pathlib
+          lib_dir = pathlib.Path(r'$libDir')
+          cuda_bin = os.environ.get('CUDA_PATH', '')
+          if cuda_bin:
+              cuda_bin = os.path.join(cuda_bin, 'bin')
+              os.add_dll_directory(cuda_bin)
+              print(f'  CUDA_PATH/bin: {cuda_bin}')
+          os.add_dll_directory(str(lib_dir))
+          os.environ['PATH'] = str(lib_dir) + os.pathsep + os.environ['PATH']
+          for dll in sorted(lib_dir.glob('*.dll')):
+              try:
+                  ctypes.CDLL(str(dll), winmode=0)
+                  print(f'  OK:   {dll.name}')
+              except Exception as e:
+                  print(f'  FAIL: {dll.name} -> {e}')
+          "@
+
+            Write-Host "`n--- CUDA DLLs in conda Library\bin ---"
+            $cudaBin = Join-Path $env:CONDA_PREFIX 'Library\bin'
+            if (Test-Path $cudaBin) {
+              Get-ChildItem -Path $cudaBin -Filter 'cu*.dll' -ErrorAction SilentlyContinue |
+                ForEach-Object { Write-Host "  $($_.Name)" }
+              Get-ChildItem -Path $cudaBin -Filter 'nv*.dll' -ErrorAction SilentlyContinue |
+                ForEach-Object { Write-Host "  $($_.Name)" }
+            } else {
+              Write-Host "  NOT FOUND: $cudaBin"
+            }
+
+            Write-Host "`n--- Environment ---"
+            Write-Host "  CUDA_PATH=$env:CUDA_PATH"
+            Write-Host "  CONDA_PREFIX=$env:CONDA_PREFIX"
+            Write-Host "  Python: $venvPython"
+
+            Write-Host "`n--- Import traceback ---"
+            Write-Host $importPath
+            Write-Host "=== END FORENSIC ==="
+
+            throw "import llama_cpp failed (exit $LASTEXITCODE) — see forensics above"
+          }
 
           if ($importPath -notmatch 'site-packages') {
             throw @"
