@@ -986,6 +986,32 @@ jobs:
           mamba install -y --channel-priority strict --override-channels --channel $cudaChannel "cuda-toolkit=$cudaVersion"
           if ($LASTEXITCODE -ne 0) { throw "mamba install cuda-toolkit failed with exit code $LASTEXITCODE" }
 
+      - name: 'Smoke-test: Export CUDA DLL path for venv steps'
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # The venv python doesn't inherit the conda env's PATH.
+          # CUDA DLLs (cudart64_*.dll, cublas*.dll, etc.) live under
+          # $CONDA_PREFIX\Library\bin — add it so ctypes.CDLL can resolve
+          # llama.dll's dependencies when importing from .smoke-venv.
+          $cudaBin = Join-Path $env:CONDA_PREFIX 'Library\bin'
+          if (-not (Test-Path $cudaBin)) {
+            throw @"
+          CONDA_PREFIX\Library\bin not found at $cudaBin
+          CUDA toolkit may not have installed correctly.
+
+          REMEDIATION:
+            - Check the 'Install CUDA toolkit' step for errors
+            - Verify mamba environment 'smoke-test' is activated
+            - Run: dir $env:CONDA_PREFIX\Library\
+          "@
+          }
+          Write-Host "Adding CUDA DLL path: $cudaBin"
+          "PATH=$cudaBin;$env:PATH" >> $env:GITHUB_ENV
+
       - name: 'Smoke-test: Disable WER crash dialog'
         shell: pwsh
         timeout-minutes: 2
