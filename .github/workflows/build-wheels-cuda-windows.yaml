@@ -705,9 +705,14 @@ jobs:
 
           # ── 4. CMAKE_ARGS construction (BLD-03, BLD-04, BLD-08) ──
           $cudaArchs = '80-real;86-real;89-real;90-real;90-virtual'
+          # NOTE: CMAKE_BUILD_TYPE is NOT passed via CMAKE_ARGS — scikit-build-core
+          # strips it ("Unsupported CMAKE_ARGS ignored") and defaults to Debug,
+          # which links ggml-cuda.dll against the Debug CRT (MSVCP140D.dll,
+          # ucrtbased.dll). The Debug CRT throws C++ exception 0xe06d7363 inside
+          # llama_tokenize. Build type is set via `-C cmake.build-type=Release`
+          # on the `python -m build` command instead.
           $env:CMAKE_ARGS = @(
             '-G Ninja'
-            '-DCMAKE_BUILD_TYPE=Release'
             '-DGGML_CUDA=on'
             "-DCMAKE_CUDA_ARCHITECTURES=$cudaArchs"
             '-DGGML_CUDA_FORCE_MMQ=ON'
@@ -737,7 +742,7 @@ jobs:
 
           # ── 5. Build the wheel (BLD-01) ──
           # -C wheel.py-api="" overrides pyproject.toml py-api="py3" → produces cpXX-cpXX tag
-          python -m build --wheel -C wheel.py-api=""
+          python -m build --wheel -C wheel.py-api="" -C cmake.build-type=Release
           if ($LASTEXITCODE -ne 0) { throw "python -m build --wheel failed with exit code $LASTEXITCODE" }
 
           # ── 6. Restore __init__.py (cleanup) ──
