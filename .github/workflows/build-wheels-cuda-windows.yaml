@@ -703,6 +703,21 @@ jobs:
           $newContent = $content -replace ('__version__\s*=\s*"[^"]+"'), "__version__ = `"$fullVersion`""
           Set-Content $initFile -Value $newContent -NoNewline
 
+          # ── 3b. Bump scikit-build-core minimum-version (BLD-14) ──
+          # pyproject.toml pins `minimum-version = "0.5.1"` which activates
+          # scikit-build-core's back-compat mode. In that mode the `cmake.build-type`
+          # config key is ignored (both via `-C` and `SKBUILD_CMAKE_BUILD_TYPE` env
+          # var), so CMake falls through to Ninja+MSVC default of Debug. Debug links
+          # ggml-cuda.dll against debug CRT (MSVCP140D.dll / ucrtbased.dll), and the
+          # debug CRT throws C++ exception 0xe06d7363 in llama_tokenize.
+          #
+          # Bump minimum-version to the version the [build-system] requires line
+          # already demands (>=0.9.2). Restored via `git checkout --` after build.
+          $pyproject = Get-Content pyproject.toml -Raw
+          $pyproject = $pyproject -replace 'minimum-version = "0\.5\.1"', 'minimum-version = "0.9.2"'
+          Set-Content pyproject.toml -Value $pyproject -NoNewline
+          Write-Host 'Bumped scikit-build-core minimum-version 0.5.1 -> 0.9.2'
+
           # ── 4. CMAKE_ARGS construction (BLD-03, BLD-04, BLD-08) ──
           $cudaArchs = '80-real;86-real;89-real;90-real;90-virtual'
           # NOTE: CMAKE_BUILD_TYPE is NOT passed via CMAKE_ARGS — scikit-build-core
@@ -752,9 +767,10 @@ jobs:
           python -m build --wheel -C wheel.py-api="" -C cmake.build-type=Release
           if ($LASTEXITCODE -ne 0) { throw "python -m build --wheel failed with exit code $LASTEXITCODE" }
 
-          # ── 6. Restore __init__.py (cleanup) ──
-          # CRITICAL: Do NOT leave modified tracked file in the checkout.
+          # ── 6. Restore modified tracked files (cleanup) ──
+          # CRITICAL: Do NOT leave modified tracked files in the checkout.
           git checkout -- $initFile
+          git checkout -- pyproject.toml
 
           # ── 7. Emit wheel path output for downstream steps ──
           $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1)
