@@ -712,11 +712,15 @@ jobs:
           # debug CRT throws C++ exception 0xe06d7363 in llama_tokenize.
           #
           # Bump minimum-version to the version the [build-system] requires line
-          # already demands (>=0.9.2). Restored via `git checkout --` after build.
+          # already demands (>=0.9.2). Also rename the deprecated `cmake.minimum-version`
+          # to `cmake.version` (scikit-build-core >= 0.8 rejects the old key).
+          # Both restored via `git checkout --` after build.
           $pyproject = Get-Content pyproject.toml -Raw
           $pyproject = $pyproject -replace 'minimum-version = "0\.5\.1"', 'minimum-version = "0.9.2"'
+          $pyproject = $pyproject -replace 'cmake\.minimum-version = "3\.21"', 'cmake.version = ">=3.21"'
           Set-Content pyproject.toml -Value $pyproject -NoNewline
           Write-Host 'Bumped scikit-build-core minimum-version 0.5.1 -> 0.9.2'
+          Write-Host 'Renamed cmake.minimum-version -> cmake.version'
 
           # ── 4. CMAKE_ARGS construction (BLD-03, BLD-04, BLD-08) ──
           $cudaArchs = '80-real;86-real;89-real;90-real;90-virtual'
