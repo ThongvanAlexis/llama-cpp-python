@@ -55,15 +55,15 @@
 
 ### Publish (GitHub Release asset)
 
-- [ ] **PUB-01**: `publish` job runs on `ubuntu-latest` (no CUDA needed for Release asset upload; 5× cheaper minutes)
-- [ ] **PUB-02**: Wheel is uploaded as an asset on a GitHub Release (authoritative storage) via `softprops/action-gh-release@v2`
+- [x] **PUB-01**: `publish` job runs on `ubuntu-latest` (no CUDA needed for Release asset upload; 5× cheaper minutes)
+- [x] **PUB-02**: Wheel is uploaded as an asset on a GitHub Release (authoritative storage) via `softprops/action-gh-release@v2`
 
 *PUB-03..PUB-10 moved to "Out of Scope" on 2026-04-19 — see CONTEXT.md 2026-04-19 for rationale. The gh-pages PEP 503 pip index scope was dropped in favour of manual download from the Releases page. Deferred requirement set (PEP 503 path placement, index.html regen, PEP 503 normalized name, `#sha256=` fragments, `data-requires-python`, `keep_files: true`, concurrency block, post-publish Fastly probe) is preserved in the Out of Scope table for a possible v2 revisit.*
 
 ### Documentation
 
-- [ ] **DOC-01**: README `Install (Windows CUDA)` section explains the manual download + `pip install path/to/wheel.whl` flow, points at `https://github.com/ThongvanAlexis/llama-cpp-python/releases`, and lists prereqs including the NVIDIA driver floor (≥ 561.17).
-- [ ] **DOC-02**: README notes the minimum NVIDIA driver version (≥ 560.x for CUDA 12.6 per NVIDIA's driver-compat matrix; bumped from ≥ 551.61/CUDA 12.4 on 2026-04-15 after OQ1)
+- [x] **DOC-01**: README `Install (Windows CUDA)` section explains the manual download + `pip install path/to/wheel.whl` flow, points at `https://github.com/ThongvanAlexis/llama-cpp-python/releases`, and lists prereqs including the NVIDIA driver floor (≥ 561.17).
+- [x] **DOC-02**: README notes the minimum NVIDIA driver version (≥ 560.x for CUDA 12.6 per NVIDIA's driver-compat matrix; bumped from ≥ 551.61/CUDA 12.4 on 2026-04-15 after OQ1)
 
 *DOC-03 moved to "Out of Scope" on 2026-04-19 — no Fastly delay without gh-pages.*
 
@@ -158,8 +158,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ST-06 | Phase 3 | Pending |
 | ST-07 | Phase 3 | Pending |
 | ST-08 | Phase 3 | Pending |
-| PUB-01 | Phase 4 | Pending |
-| PUB-02 | Phase 4 | Pending |
+| PUB-01 | Phase 4 | Complete |
+| PUB-02 | Phase 4 | Complete |
 | PUB-03 | Deferred to v2 | Out of Scope |
 | PUB-04 | Deferred to v2 | Out of Scope |
 | PUB-05 | Deferred to v2 | Out of Scope |
@@ -168,8 +168,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | PUB-08 | Deferred to v2 | Out of Scope |
 | PUB-09 | Deferred to v2 | Out of Scope |
 | PUB-10 | Deferred to v2 | Out of Scope |
-| DOC-01 | Phase 4 | Pending |
-| DOC-02 | Phase 4 | Pending |
+| DOC-01 | Phase 4 | Complete |
+| DOC-02 | Phase 4 | Complete |
 | DOC-03 | Deferred to v2 | Out of Scope |
 | DOC-04 | Phase 1 | Complete |
 | DOC-05 | Phase 4 | Pending |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 4 context gathered
-last_updated: "2026-04-18T22:21:50.175Z"
-last_activity: 2026-04-17 — Phase 2 COMPLETE. Plan 02 added wheel tag/size assertions + artifact upload, verified end-to-end via dispatch. All 13 BLD-* requirements verified green. Ready for Phase 3.
+status: in-progress
+stopped_at: Completed 04-01-PLAN.md (publish job + lint-gate + README + REQUIREMENTS/PROJECT amendments); next is 04-02 dispatch checkpoint
+last_updated: "2026-04-18T23:13:47.882Z"
+last_activity: 2026-04-18 — Phase 4 Plan 01 COMPLETE. Publish job + lint-gate + fork-focused README + REQUIREMENTS/PROJECT scope-reduction amendments (PUB-03..10/DOC-03 -> Out of Scope, DOC-01 rewritten to manual-download wording). 3 task commits, 22/22 static invariants green, actionlint passes. Ready for Plan 04-02 (dispatch verification).
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_plans: 8
+  completed_plans: 7
+  percent: 88
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-15)
 
 ## Current Position
 
-Phase: 2 of 4 (Build & Cache) -- COMPLETE
-Plan: 2 of 2 in current phase (Phase 2 complete)
-Status: Phase 2 complete. Ready for Phase 3 (Smoke Test).
-Last activity: 2026-04-17 — Phase 2 COMPLETE. Plan 02 added wheel tag/size assertions + artifact upload, verified end-to-end via dispatch. All 13 BLD-* requirements verified green. Ready for Phase 3.
+Phase: 4 of 4 (Publish & Consumer UX) -- IN PROGRESS
+Plan: 1 of 2 in current phase (04-01 complete; 04-02 dispatch-verification checkpoint remaining)
+Status: Plan 04-01 complete. Publish job + lint-gate + fork-focused README + REQUIREMENTS/PROJECT scope-reduction amendments landed. actionlint passes; 22/22 overall static invariants green. Ready for 04-02 (dispatch verification checkpoint).
+Last activity: 2026-04-18 — Phase 4 Plan 01 COMPLETE. Publish job appended to workflow YAML (softprops/action-gh-release@v2, byte-identical wheel upload at v<base>-cu126-win tag, 12-char llama.cpp SHA parsed from wheel filename, full forensics body). Anchored publish-gate presence-grep added to lint-workflow. Fork-focused README (~110 lines) + README.upstream.md preservation + REQUIREMENTS.md PUB-03..10/DOC-03 Out-of-Scope amendment + PROJECT.md Core Value rewrite + Key Decisions 2026-04-19 row. 3 task commits (8441180, b94935c, 4bb91d9).
 
-Progress: [██████████] 100% (Phase 2 complete, 5/5 plans across Phases 1-2)
+Progress: [█████████░] 88% (7 plans complete of 8 total: Phase 1: 3/3, Phase 2: 2/2, Phase 3: 1/1, Phase 4: 1/2)
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [██████████] 100% (Phase 2 complete, 5/5 plans acr
 | Phase 01-scaffold-toolchain-pinning P03 | ~4h | 3 tasks | 1 files |
 | Phase 02-build-cache P01 | ~4 min | 2 tasks | 1 files |
 | Phase 02-build-cache P02 | ~multi-session | 2 tasks | 1 files |
+| Phase 04-publish-consumer-ux P01 | ~8 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,9 @@ Recent decisions affecting current work (from PROJECT.md + research):
 - [Phase 02-build-cache 2026-04-16]: SKBUILD_WHEEL_PY_API='' overrides pyproject.toml wheel.py-api='py3' to produce cpXX tag. Fallback: -C wheel.py-api="" or explicit cp311. Needs empirical validation.
 - [Phase 02-build-cache 2026-04-16]: CMP0141 dual approach -- CMAKE_POLICY_DEFAULT_CMP0141=NEW + Embedded + /Z7 FLAGS_INIT fallback (sccache#2244 workaround). Empirical validation on first dispatch.
 - [Phase 02-build-cache 2026-04-16]: CMAKE_BUILD_PARALLEL_LEVEL=2 (runner has 4 vCPUs but CUDA compilation is memory-heavy).
+- [Phase 04-publish-consumer-ux]: 2026-04-19 scope reduction: dropped gh-pages PEP 503 pip index (PUB-03..PUB-10 + DOC-03) in favour of Release-only publishing with manual download; applied via REQUIREMENTS.md Out of Scope move + PROJECT.md Key Decisions row
+- [Phase 04-publish-consumer-ux]: 12-char llama.cpp SHA for Release body forensics parsed from wheel filename (option b of SHA-width fix), NOT via new assert-submodule output — keeps Phase 1 step untouched
+- [Phase 04-publish-consumer-ux]: Lint-workflow publish-gate uses anchored ^    needs[:]... pattern so prose/comments mentioning the phrase don't trigger the exactly-1-match invariant; error strings paraphrased ('colon'/'dash') to stay regex-invisible
 
 ### Pending Todos
 
@@ -117,6 +121,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-18T22:21:50.172Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-publish-consumer-ux/04-CONTEXT.md
+Last session: 2026-04-18T23:13:47.880Z
+Stopped at: Completed 04-01-PLAN.md (publish job + lint-gate + README + REQUIREMENTS/PROJECT amendments)
+Resume file: None

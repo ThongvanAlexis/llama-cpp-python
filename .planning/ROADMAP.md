@@ -96,8 +96,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Scaffold & Toolchain Pinning | 3/3 | Complete | 2026-04-16 |
 | 2. Build & Cache | 2/2 | Complete | 2026-04-17 |
-| 3. Smoke Test (Publish Gate) | 0/1 | Planned | - |
-| 4. Publish & Consumer UX | 0/2 | Planned | - |
+| 3. Smoke Test (Publish Gate) | 1/1 | Complete | 2026-04-18 |
+| 4. Publish & Consumer UX | 1/2 | In Progress | - |
 
 ## Coverage
 
