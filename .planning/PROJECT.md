@@ -6,7 +6,7 @@ A GitHub Actions workflow, living in this fork of `abetlen/llama-cpp-python`, th
 
 ## Core Value
 
-**Produce a Windows x64 CUDA wheel that actually works at runtime** (loads a model, runs inference without segfault) and is installable via `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu126`.
+**Produce a Windows x64 CUDA wheel that actually works at runtime** (loads a model, runs inference without segfault) and is installable by downloading the `.whl` from the repo's [Releases page](https://github.com/ThongvanAlexis/llama-cpp-python/releases) and running `pip install path/to/wheel.whl`. (gh-pages PEP 503 index scope reduction applied 2026-04-19 — see Key Decisions.)
 
 The runtime-works part is non-negotiable: upstream's historical failure mode is wheels that install fine but segfault on first `Llama(...)` call when `-allow-unsupported-compiler` was used to paper over VS/nvcc incompatibility. Every publish must be gated on a passing smoke test.
 
@@ -94,6 +94,8 @@ The runtime-works part is non-negotiable: upstream's historical failure mode is 
 | Save caches on build failure | Most dev iterations will be failing builds; don't re-pay download cost every attempt | — Pending |
 | Enumerate runner MSVC toolsets from disk, not install via vs_installer | Both 14.39 and 14.40 VC components retired from windows-2022 channel manifest (actions/runner-images#9701). Enumeration of `VC\Tools\MSVC\*` is instant, authoritative, and self-documenting. If pin not found, fail with list of available pins. | Complete (2026-04-16) |
 | Auto-select MSVC from CUDA compat matrix | msvc_toolset defaults to 'auto'; probe step uses CUDA<->MSVC compatibility matrix (host_config.h _MSC_VER caps) to pick newest compatible toolset from whatever is installed. Corrected cap model: CUDA 12.4-12.9 all cap at _MSC_VER < 1950 (not per-minor as assumed). Resilient to runner image rotation. | Complete (2026-04-16) |
+| 2026-04-19: Drop gh-pages PEP 503 index from Phase 4 scope (Release-only publishing) | Maintenance cost of gh-pages branch + index regen + Fastly probe + `--extra-index-url` UX didn't justify complexity for a solo-maintainer fork. Release-only publishing delivers the core runtime-works guarantee (smoke-test gate + wheel asset) with less surface area. Deferred requirement set: PUB-03..PUB-10 + DOC-03 (revisit in v2 if the fork grows a wider user base or matrix). | Complete (2026-04-19) — scope reduction applied via Phase 4 Plan 01 Task 3; REQUIREMENTS.md amended, Core Value rewritten to manual-install wording. |
 
 ---
-*Last updated: 2026-04-16 — MSVC auto-select from CUDA compat matrix; msvc_toolset defaults to 'auto'; resilient to runner image rotation*
+*Last updated: 2026-04-19 — Phase 4 scope reduction: gh-pages PEP 503 index dropped; Release-only publishing. Core Value rewritten to manual download + `pip install path/to/wheel.whl`.*
+*Previous update: 2026-04-16 — MSVC auto-select from CUDA compat matrix; msvc_toolset defaults to 'auto'; resilient to runner image rotation*

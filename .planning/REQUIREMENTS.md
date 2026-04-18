@@ -53,24 +53,20 @@
 - [ ] **ST-07**: Smoke-test uses `cuobjdump --list-elf` on the shipped `ggml-cuda.dll` to verify expected CUDA architectures are present (compensates for CPU-only runner)
 - [ ] **ST-08**: `publish` job has `needs: [build, smoke-test]` — the job DAG makes the smoke test a hard publish gate
 
-### Publish (GitHub Pages Pip Index)
+### Publish (GitHub Release asset)
 
-- [ ] **PUB-01**: `publish` job runs on `ubuntu-latest` (no CUDA needed for HTML generation + git push; 5× cheaper minutes)
+- [ ] **PUB-01**: `publish` job runs on `ubuntu-latest` (no CUDA needed for Release asset upload; 5× cheaper minutes)
 - [ ] **PUB-02**: Wheel is uploaded as an asset on a GitHub Release (authoritative storage) via `softprops/action-gh-release@v2`
-- [ ] **PUB-03**: Wheel file is placed at `whl/cu<tag>/llama-cpp-python/<wheel-filename>.whl` in the `gh-pages` branch (tag derived from CUDA major.minor, e.g., `cu126`)
-- [ ] **PUB-04**: `index.html` is regenerated from the actual directory listing of `whl/cu<tag>/llama-cpp-python/` on every publish (idempotent; append-only semantics)
-- [ ] **PUB-05**: `index.html` uses PEP 503-normalized project folder name `llama-cpp-python` (hyphens, lowercase)
-- [ ] **PUB-06**: Each `<a>` entry in `index.html` includes a `#sha256=<digest>` URL fragment for pip hash checking
-- [ ] **PUB-07**: Each `<a>` entry includes `data-requires-python` attribute derived from the wheel's Python tag
-- [ ] **PUB-08**: `peaceiris/actions-gh-pages@v4` is configured with `keep_files: true` so multiple wheels across versions coexist on the index
-- [ ] **PUB-09**: A `concurrency: group: gh-pages-publish, cancel-in-progress: false` block on the publish job prevents simultaneous-dispatch races
-- [ ] **PUB-10**: Post-publish step probes the published URL (up to 15 × 60s) and confirms the new wheel is resolvable before the job exits green
+
+*PUB-03..PUB-10 moved to "Out of Scope" on 2026-04-19 — see CONTEXT.md 2026-04-19 for rationale. The gh-pages PEP 503 pip index scope was dropped in favour of manual download from the Releases page. Deferred requirement set (PEP 503 path placement, index.html regen, PEP 503 normalized name, `#sha256=` fragments, `data-requires-python`, `keep_files: true`, concurrency block, post-publish Fastly probe) is preserved in the Out of Scope table for a possible v2 revisit.*
 
 ### Documentation
 
-- [ ] **DOC-01**: README has an "Install (Windows CUDA)" section with the canonical command: `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu126`
+- [ ] **DOC-01**: README `Install (Windows CUDA)` section explains the manual download + `pip install path/to/wheel.whl` flow, points at `https://github.com/ThongvanAlexis/llama-cpp-python/releases`, and lists prereqs including the NVIDIA driver floor (≥ 561.17).
 - [ ] **DOC-02**: README notes the minimum NVIDIA driver version (≥ 560.x for CUDA 12.6 per NVIDIA's driver-compat matrix; bumped from ≥ 551.61/CUDA 12.4 on 2026-04-15 after OQ1)
-- [ ] **DOC-03**: README notes the up-to-15-minute Fastly cache delay after a publish and suggests `pip install --no-cache-dir` when a fresh wheel isn't resolved
+
+*DOC-03 moved to "Out of Scope" on 2026-04-19 — no Fastly delay without gh-pages.*
+
 - [x] **DOC-04**: The workflow YAML contains inline comments explaining the MSVC 14.40 pin rationale (and the 14.39 → 14.40 bump history) and the `-allow-unsupported-compiler` ban (link to upstream #1543)
 - [ ] **DOC-05**: Release notes (GitHub Release body) record the llama.cpp submodule SHA at build time
 
@@ -105,9 +101,11 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
+| PUB-03..PUB-10 gh-pages PEP 503 pip index (path placement, index.html regen, PEP 503 normalized name, `#sha256=` fragments, `data-requires-python`, `keep_files: true`, concurrency block, post-publish Fastly probe) | Consumer install via manual download from Releases page; gh-pages maintenance cost not worth it for a solo-maintainer fork. Requirement set stays defined for a possible v2 revisit; see CONTEXT.md 2026-04-19 for rationale. |
+| DOC-03 Fastly cache delay note | Consumer install via manual download from Releases page; no gh-pages, no Fastly CDN in v1. Could be revisited in v2 if the gh-pages PEP 503 index ships. |
 | Linux wheels | Upstream still publishes these; no reason to duplicate |
 | macOS / Metal wheels | Upstream still publishes these |
-| PyPI publishing | Name collision with upstream; we intentionally ship via gh-pages index only |
+| PyPI publishing | Name collision with upstream; we intentionally ship via GitHub Releases only |
 | Upstream PR to reactivate Windows in abetlen/llama-cpp-python | Upstream is in maintenance pause (#2136 Quansight offer ignored); not worth the effort |
 | `-allow-unsupported-compiler` fallback | Produces wheels that segfault at runtime (upstream #1543) |
 | CPU-only Windows wheels | Already exist via `pip install llama-cpp-python`; scope creep |
@@ -162,31 +160,34 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ST-08 | Phase 3 | Pending |
 | PUB-01 | Phase 4 | Pending |
 | PUB-02 | Phase 4 | Pending |
-| PUB-03 | Phase 4 | Pending |
-| PUB-04 | Phase 4 | Pending |
-| PUB-05 | Phase 4 | Pending |
-| PUB-06 | Phase 4 | Pending |
-| PUB-07 | Phase 4 | Pending |
-| PUB-08 | Phase 4 | Pending |
-| PUB-09 | Phase 4 | Pending |
-| PUB-10 | Phase 4 | Pending |
+| PUB-03 | Deferred to v2 | Out of Scope |
+| PUB-04 | Deferred to v2 | Out of Scope |
+| PUB-05 | Deferred to v2 | Out of Scope |
+| PUB-06 | Deferred to v2 | Out of Scope |
+| PUB-07 | Deferred to v2 | Out of Scope |
+| PUB-08 | Deferred to v2 | Out of Scope |
+| PUB-09 | Deferred to v2 | Out of Scope |
+| PUB-10 | Deferred to v2 | Out of Scope |
 | DOC-01 | Phase 4 | Pending |
 | DOC-02 | Phase 4 | Pending |
-| DOC-03 | Phase 4 | Pending |
+| DOC-03 | Deferred to v2 | Out of Scope |
 | DOC-04 | Phase 1 | Complete |
 | DOC-05 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 51 total
-- Mapped to phases: 51 ✓
+- v1 requirements: 51 total defined
+- Active in v1 scope: 42 (Phase 1: 16, Phase 2: 13, Phase 3: 8, Phase 4: 5)
+- Out of Scope (deferred to v2): 9 (PUB-03..10 + DOC-03; moved 2026-04-19, see CONTEXT.md)
+- Mapped (active + out-of-scope): 51 ✓
 - Unmapped: 0
 
-**Phase distribution:**
+**Phase distribution (active):**
 - Phase 1 (Scaffold & Toolchain Pinning): 16 requirements (WF-01..05, TC-01..10, DOC-04)
 - Phase 2 (Build & Cache): 13 requirements (BLD-01..13)
 - Phase 3 (Smoke Test): 8 requirements (ST-01..08)
-- Phase 4 (Publish & Consumer UX): 14 requirements (PUB-01..10, DOC-01, DOC-02, DOC-03, DOC-05)
+- Phase 4 (Publish & Consumer UX): 5 requirements (PUB-01, PUB-02, DOC-01, DOC-02, DOC-05)
 
 ---
 *Requirements defined: 2026-04-15*
-*Last updated: 2026-04-15 — traceability populated after roadmap creation; OQ1 resolution (later the same day) bumped the cuda_version/msvc_toolset defaults from 12.4.1/14.39 to 12.6.3/14.40 and amended TC-02/TC-03/TC-04, WF-04, BLD-12, PUB-03, DOC-01/02/04, plus core-value URL (cu124 → cu126).*
+*Last updated: 2026-04-19 — Phase 4 scope reduction: moved PUB-03..PUB-10 and DOC-03 to Out of Scope (gh-pages PEP 503 index dropped in favour of manual download from Releases page; revisit in v2). Rewrote DOC-01 to the manual-download flow. Active Phase 4 requirement count: 14 → 5. See CONTEXT.md 2026-04-19 for rationale and PROJECT.md Key Decisions for the decision record.*
+*Previous update: 2026-04-15 — traceability populated after roadmap creation; OQ1 resolution (later the same day) bumped the cuda_version/msvc_toolset defaults from 12.4.1/14.39 to 12.6.3/14.40 and amended TC-02/TC-03/TC-04, WF-04, BLD-12, PUB-03, DOC-01/02/04, plus core-value URL (cu124 → cu126).*
