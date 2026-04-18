@@ -724,14 +724,22 @@ jobs:
 
           # ── 4. CMAKE_ARGS construction (BLD-03, BLD-04, BLD-08) ──
           $cudaArchs = '80-real;86-real;89-real;90-real;90-virtual'
-          # NOTE: CMAKE_BUILD_TYPE is NOT passed via CMAKE_ARGS — scikit-build-core
-          # strips it ("Unsupported CMAKE_ARGS ignored") and defaults to Debug,
-          # which links ggml-cuda.dll against the Debug CRT (MSVCP140D.dll,
-          # ucrtbased.dll). The Debug CRT throws C++ exception 0xe06d7363 inside
-          # llama_tokenize. Build type is set via `-C cmake.build-type=Release`
-          # on the `python -m build` command instead.
+          # RELEASE BUILD ENFORCEMENT (belt-and-suspenders):
+          #   Neither `-C cmake.build-type=Release` nor `SKBUILD_CMAKE_BUILD_TYPE=Release`
+          #   reliably sets CMAKE_BUILD_TYPE. llama.cpp's CMakeLists prints Debug
+          #   regardless, and ggml-cuda.dll ends up linked against the debug CRT
+          #   (MSVCP140D.dll, ucrtbased.dll) which throws C++ exception 0xe06d7363
+          #   inside llama_tokenize. To actually land a Release build we force it
+          #   through three independent channels:
+          #     1. -DCMAKE_BUILD_TYPE=Release in CMAKE_ARGS (in case 0.9.x doesn't strip)
+          #     2. CMAKE_POLICY_DEFAULT_CMP0091=NEW + CMAKE_MSVC_RUNTIME_LIBRARY
+          #        (directly forces Release CRT /MD regardless of BUILD_TYPE)
+          #     3. SKBUILD_CMAKE_BUILD_TYPE=Release env var (set later)
           $env:CMAKE_ARGS = @(
             '-G Ninja'
+            '-DCMAKE_BUILD_TYPE=Release'
+            '-DCMAKE_POLICY_DEFAULT_CMP0091=NEW'
+            '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL'
             '-DGGML_CUDA=on'
             "-DCMAKE_CUDA_ARCHITECTURES=$cudaArchs"
             '-DGGML_CUDA_FORCE_MMQ=ON'
