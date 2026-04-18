@@ -66,20 +66,26 @@ Plans:
 - [ ] 03-01-PLAN.md — Commit tiny-llama.gguf fixture, add smoke-test job with sparse checkout + fresh venv + import/version assertions + cuobjdump arch check + subprocess inference test with WER suppression + forensics [human-verify checkpoint] (ST-01..ST-08)
 
 ### Phase 4: Publish & Consumer UX
-**Goal**: On green smoke-test, the publish job (on `ubuntu-latest`) uploads the wheel as a GitHub Release asset, places it under `whl/cu126/llama-cpp-python/` on the `gh-pages` branch with a regenerated PEP 503-compliant `index.html` (SHA-256 fragments + `data-requires-python` attrs), guarded by a `concurrency:` block and a post-publish HTTP probe — plus the consumer-facing README updates that make the index usable.
+**Goal**: On green smoke-test, the publish job (on `ubuntu-latest`, gated by `needs: [build, smoke-test]`) uploads the built wheel as a GitHub Release asset via `softprops/action-gh-release@v2` at tag `v<base_version>-cu126-win`, with a forensics release body (narrative intro + table) embedding the llama.cpp submodule SHA (DOC-05); the repo README is overwritten to a fork-focused document explaining manual download + `pip install path/to/wheel.whl` (with upstream README preserved at `README.upstream.md`); `REQUIREMENTS.md` and `PROJECT.md` are amended to record the 2026-04-19 scope reduction.
 **Depends on**: Phase 3
-**Requirements**: PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08, PUB-09, PUB-10, DOC-01, DOC-02, DOC-03, DOC-05
+**Requirements**: PUB-01, PUB-02, DOC-01, DOC-02, DOC-05 (active); PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08, PUB-09, PUB-10, DOC-03 (moved to Out of Scope in v1 by Plan 04-01 amendment)
+**Scope reduction (2026-04-19)**: PEP 503 / gh-pages / Fastly probe dropped — consumers install by downloading the `.whl` from the Releases page and running `pip install path/to/wheel.whl`. Rationale: maintenance cost of gh-pages branch + index regen + probe didn't justify complexity for a solo-maintainer fork. Deferred set (PUB-03..PUB-10 + DOC-03) tracked in REQUIREMENTS.md Out of Scope table for possible v2 revisit.
 **Success Criteria** (what must be TRUE):
-  1. After a green publish run, `curl https://<user>.github.io/llama-cpp-python/whl/cu126/llama-cpp-python/` returns a PEP 503-valid HTML index whose `<a>` entries include `#sha256=<digest>` fragments and `data-requires-python` attributes, and the just-published wheel filename appears among them.
-  2. Running `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu126` in a fresh venv (possibly with `--no-cache-dir` during the 15-minute Fastly window) installs the new wheel without `No matching distribution` errors, and the post-publish probe step confirms Fastly visibility before the publish job exits green.
-  3. After a second dispatch (different Python or CUDA version), the previously-published wheel is still listed in the index alongside the new one — `keep_files: true` and `concurrency: group: gh-pages-publish, cancel-in-progress: false` prevent the race that would wipe it.
-  4. The published GitHub Release body records the llama.cpp submodule SHA at build time; the wheel is present as a release asset (authoritative storage) and at its gh-pages path (pip-facing copy).
-  5. The repo's README contains an "Install (Windows CUDA)" section with the canonical `--extra-index-url` command, the minimum NVIDIA driver version (≥ 551.61 for CUDA 12.4), and a note on the up-to-15-minute Fastly cache delay plus the `--no-cache-dir` escape hatch.
-**Plans**: TBD (1-3 plans; likely 2-3 — publish job, index generator, README/release-notes are distinct concerns)
+  1. `.github/workflows/build-wheels-cuda-windows.yaml` has a `publish:` job on `ubuntu-latest` with `needs: [build, smoke-test]`, job-level `permissions: contents: write`, using `actions/download-artifact@v4` (name: `cuda-wheel`) + `softprops/action-gh-release@v2` with `target_commitish: ${{ github.sha }}` + `fail_on_unmatched_files: true`.
+  2. The `build:` job has a top-level `outputs:` block surfacing `llama_sha`, `selected_toolset`, `selected_full_version` so the publish job can reference them via `needs.build.outputs.*` for the forensics body.
+  3. The `lint-workflow` job contains a character-class-guarded presence-grep for `needs: [build, smoke-test]` on the publish job (inverse of Phase 1's ban-grep; count=1, not count=0).
+  4. `README.md` is a fork-focused document with an `## Install (Windows CUDA)` section (manual download + `pip install path/to/wheel.whl`), NVIDIA driver floor (≥ 561.17), fork URL, and Attribution pointing at `README.upstream.md`; upstream README preserved byte-for-byte at `README.upstream.md`.
+  5. An end-to-end `workflow_dispatch` creates a GitHub Release at `v<ver>-cu126-win` with the wheel as an asset (SHA-256 matching the publish job's logged value — byte-identical upload) and a rendered release body containing the 12-char llama.cpp SHA and forensics table (DOC-05).
+**Anti-requirements** (enforced by Plan 04-01 negative-greps):
+  - NO `peaceiris/actions-gh-pages` anywhere in the workflow
+  - NO `gh-pages-publish` concurrency block
+  - NO `--extra-index-url` in README or workflow
+  - NO post-publish HTTP / Fastly probe step
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: TBD — publish job on ubuntu-latest, Release asset upload, gh-pages placement, PEP 503 index regen with SHA-256 + requires-python, concurrency block, post-publish probe
-- [ ] 04-02: TBD — README install section (canonical command, driver floor, Fastly delay note) + release notes template embedding llama.cpp SHA
+- [ ] 04-01-PLAN.md — Add build job outputs block, publish job + lint-workflow gate-assert, fork-focused README + preserved upstream README, REQUIREMENTS.md + PROJECT.md amendments (PUB-01, PUB-02, PUB-03..10, DOC-01, DOC-02, DOC-03, DOC-05)
+- [ ] 04-02-PLAN.md — End-to-end dispatch verification: green workflow_dispatch produces a real Release at v<ver>-cu126-win with matching asset SHA-256 + forensics body [human-verify checkpoint] (PUB-01, PUB-02, DOC-05)
 
 ## Progress
 
@@ -91,7 +97,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Scaffold & Toolchain Pinning | 3/3 | Complete | 2026-04-16 |
 | 2. Build & Cache | 2/2 | Complete | 2026-04-17 |
 | 3. Smoke Test (Publish Gate) | 0/1 | Planned | - |
-| 4. Publish & Consumer UX | 0/TBD | Not started | - |
+| 4. Publish & Consumer UX | 0/2 | Planned | - |
 
 ## Coverage
 
@@ -107,3 +113,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 *Updated 2026-04-15 — OQ1 resolution: default cuda_version 12.4.1 → 12.6.3, msvc_toolset 14.39 → 14.40 (VC.14.39.17.9 component retired from windows-2022 image per actions/runner-images#9701)*
 *Phase 2 planned: 2026-04-16 (2 plans, wave-sequential — build body + cache in wave 1, assertions + dispatch verification in wave 2)*
 *Phase 3 planned: 2026-04-17 (1 plan — smoke-test job + fixture + assertions + dispatch verification [human-verify checkpoint])*
+*Phase 4 planned: 2026-04-19 (2 plans — publish job + consumer UX in Plan 01, dispatch verification in Plan 02 [human-verify checkpoint]; scope reduced 2026-04-19 per CONTEXT.md — PUB-03..10 + DOC-03 deferred to v2)*
