@@ -714,13 +714,22 @@ jobs:
           # Bump minimum-version to the version the [build-system] requires line
           # already demands (>=0.9.2). Also rename the deprecated `cmake.minimum-version`
           # to `cmake.version` (scikit-build-core >= 0.8 rejects the old key).
-          # Both restored via `git checkout --` after build.
+          # Also inject `cmake.build-type = "Release"` — scikit-build-core strips
+          # `-DCMAKE_BUILD_TYPE=Release` from CMAKE_ARGS and silently ignores both
+          # `-C cmake.build-type=...` and `SKBUILD_CMAKE_BUILD_TYPE=...`, but it DOES
+          # read the value from pyproject.toml. Debug mode injects /RTC1 (runtime
+          # checks) which throws 0xe06d7363 in llama_tokenize.
+          # All three changes restored via `git checkout --` after build.
           $pyproject = Get-Content pyproject.toml -Raw
           $pyproject = $pyproject -replace 'minimum-version = "0\.5\.1"', 'minimum-version = "0.9.2"'
-          $pyproject = $pyproject -replace 'cmake\.minimum-version = "3\.21"', 'cmake.version = ">=3.21"'
+          $pyproject = $pyproject -replace 'cmake\.minimum-version = "3\.21"', "cmake.version = `">=3.21`"`ncmake.build-type = `"Release`""
           Set-Content pyproject.toml -Value $pyproject -NoNewline
           Write-Host 'Bumped scikit-build-core minimum-version 0.5.1 -> 0.9.2'
           Write-Host 'Renamed cmake.minimum-version -> cmake.version'
+          Write-Host 'Injected cmake.build-type = "Release"'
+          Write-Host '--- Patched [tool.scikit-build] section ---'
+          (Get-Content pyproject.toml) | Select-String -Pattern '\[tool\.scikit-build\]|^cmake\.|^wheel\.|^minimum-version' | ForEach-Object { Write-Host $_.Line }
+          Write-Host '--- end patch ---'
 
           # ── 4. CMAKE_ARGS construction (BLD-03, BLD-04, BLD-08) ──
           $cudaArchs = '80-real;86-real;89-real;90-real;90-virtual'
