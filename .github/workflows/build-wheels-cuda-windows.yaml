@@ -123,6 +123,10 @@ jobs:
   build:
     runs-on: windows-2022
     timeout-minutes: 210
+    outputs:
+      llama_sha: ${{ steps.assert-submodule.outputs.llama_sha }}
+      selected_toolset: ${{ steps.probe-msvc.outputs.selected_toolset }}
+      selected_full_version: ${{ steps.probe-msvc.outputs.selected_full_version }}
     defaults:
       run:
         shell: pwsh
