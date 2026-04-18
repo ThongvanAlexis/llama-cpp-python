@@ -737,8 +737,15 @@ jobs:
           # SKBUILD_WHEEL_PY_API='' does NOT work (env var empty string ignored by scikit-build-core).
           # Use -C config-setting instead, applied at build command below.
 
+          # Force Release build type. `-C cmake.build-type=Release` alone is
+          # NOT reliable — pyproject.toml's `minimum-version = "0.5.1"` puts
+          # scikit-build-core into back-compat mode and it defaults to Debug.
+          # The env var is honored regardless of compat mode.
+          $env:SKBUILD_CMAKE_BUILD_TYPE = 'Release'
+
           Write-Host "CMAKE_ARGS: $env:CMAKE_ARGS"
           Write-Host "CMAKE_BUILD_PARALLEL_LEVEL: $env:CMAKE_BUILD_PARALLEL_LEVEL"
+          Write-Host "SKBUILD_CMAKE_BUILD_TYPE: $env:SKBUILD_CMAKE_BUILD_TYPE"
 
           # ── 5. Build the wheel (BLD-01) ──
           # -C wheel.py-api="" overrides pyproject.toml py-api="py3" → produces cpXX-cpXX tag
