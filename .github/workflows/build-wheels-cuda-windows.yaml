@@ -762,6 +762,18 @@ jobs:
             '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded'
             '-DCMAKE_C_FLAGS_INIT="/Z7"'
             '-DCMAKE_CXX_FLAGS_INIT="/Z7"'
+            # scikit-build-core refuses every channel we have tried for flipping
+            # CMAKE_BUILD_TYPE to Release (pyproject.toml, -C, env var, CMAKE_ARGS
+            # all silently ignored), so the project is still configured Debug.
+            # The Release CRT is already forced via CMAKE_MSVC_RUNTIME_LIBRARY, but
+            # Debug config still injects `/Od` (no optimization) and `/RTC1` (runtime
+            # checks). `/RTC1` throws 0xe06d7363 inside llama_tokenize on
+            # uninitialized-memory reads that Release builds tolerate. Override the
+            # DEBUG-config compile flags to Release-like values (`/O2 /Ob2`) to
+            # remove both `/Od` and `/RTC1`.
+            '-DCMAKE_C_FLAGS_DEBUG="/O2 /Ob2 /DNDEBUG"'
+            '-DCMAKE_CXX_FLAGS_DEBUG="/O2 /Ob2 /DNDEBUG"'
+            '-DCMAKE_CUDA_FLAGS_DEBUG="-O3 -DNDEBUG"'
             '-DCMAKE_CUDA_FLAGS=-diag-suppress=177,221,550'
           ) -join ' '
 
