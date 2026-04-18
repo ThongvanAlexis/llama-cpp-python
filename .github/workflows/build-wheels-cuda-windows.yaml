@@ -752,6 +752,15 @@ jobs:
             '-DGGML_CUDA=on'
             "-DCMAKE_CUDA_ARCHITECTURES=$cudaArchs"
             '-DGGML_CUDA_FORCE_MMQ=ON'
+            # GGML_NATIVE=OFF is CRITICAL for portable wheels. With NATIVE=ON
+            # (the default), ggml-cpu/CMakeLists runs FindSIMD.cmake on the build
+            # host and sets GGML_AVX512=ON if the build runner has AVX-512, baking
+            # /arch:AVX512 into ggml-cpu.dll. Smoke-test/download runners may not
+            # have AVX-512 -> STATUS_ILLEGAL_INSTRUCTION (0xc000001d) at first
+            # vectorized load. OFF lets our explicit AVX/AVX2/FMA/F16C flags take
+            # effect, producing an AVX-baseline (/arch:AVX) binary that runs on
+            # any x86-64 CPU with AVX (Sandy Bridge / Jaguar 2011+).
+            '-DGGML_NATIVE=OFF'
             '-DGGML_AVX2=off'
             '-DGGML_FMA=off'
             '-DGGML_F16C=off'
