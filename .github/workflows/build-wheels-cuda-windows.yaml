@@ -1666,9 +1666,170 @@ jobs:
           fi
           echo "OK: no banned compiler-bypass workaround flag in $WORKFLOW"
 
+      - name: 'Lint: assert publish-gate on smoke-test'
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKFLOW='.github/workflows/build-wheels-cuda-windows.yaml'
+          # Character-class escapes (`[:]`, `[-]`) prevent self-match on this step's own source line,
+          # same trick as the ban-grep above but with INVERTED invariant: count MUST equal 1 (presence-grep).
+          # Leading `^    ` anchor scopes the match to the actual job declaration line (4-space indent
+          # at job-level YAML), so comments, error messages, and body templates that reference the
+          # phrase in prose do not trigger the presence-count. \s* tolerates trivial YAML reformatting.
+          MATCHES=$(grep -cE '^    needs[:]\s*\[\s*build\s*,\s*smoke[-]test\s*\]' "$WORKFLOW" || true)
+          if [[ "$MATCHES" -ne 1 ]]; then
+            echo "::error file=$WORKFLOW::publish-gate regression -- expected exactly 1 match of the publish job declaration 'needs colon [build, smoke-dash-test]' at 4-space indent, got $MATCHES"
+            echo "REMEDIATION: restore the publish job declaration line. Smoke-test is a HARD publish gate (upstream #1543 -- ships-but-segfaults class of bugs)."
+            exit 1
+          fi
+          echo "OK: publish-gate present (1 match) in $WORKFLOW"
+
       - name: 'Lint: actionlint'
         shell: bash
         run: |
           set -euo pipefail
           bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
           ./actionlint -color .github/workflows/build-wheels-cuda-windows.yaml
+
+  # ── Phase 4 publish job ──
+  # Runs on a green smoke-test only. Downloads the `cuda-wheel` artifact from
+  # the build job (byte-identical to what Phase 2 produced — no repackaging),
+  # computes release metadata, assembles the forensics body, and uploads the
+  # wheel as an asset on a GitHub Release at tag `v<base_version>-cu<maj><min>-win`.
+  # The gate is STRUCTURAL: `needs: [build, smoke-test]` + a lint-workflow
+  # grep-assert above. Removing the gate is a grep-detectable regression.
+  # See upstream #1543 for why smoke-test is a hard publish gate.
+  publish:
+    needs: [build, smoke-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 'Publish: Download wheel artifact'
+        uses: actions/download-artifact@v4
+        timeout-minutes: 5
+        with:
+          name: cuda-wheel
+          path: ./dist
+
+      - name: 'Publish: Compute release metadata'
+        id: meta
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          WHEEL=$(ls dist/*.whl | head -1)
+          if [[ -z "$WHEEL" ]]; then
+            echo "::error::No wheel found in dist/ after artifact download (expected name cuda-wheel from build job)"
+            exit 1
+          fi
+          WHEEL_NAME=$(basename "$WHEEL")
+          WHEEL_SIZE=$(stat -c%s "$WHEEL")
+          WHEEL_SIZE_MIB=$(awk -v s="$WHEEL_SIZE" 'BEGIN { printf "%.1f", s/1024/1024 }')
+          WHEEL_SHA256=$(sha256sum "$WHEEL" | cut -d' ' -f1)
+          BUILD_DATE=$(date -u +%Y-%m-%d)
+          # Parse base_version from `llama_cpp_python-<base>+cu126.ll<sha>-cp...` (Phase 2 locked scheme).
+          BASE_VER=$(echo "$WHEEL_NAME" | sed -E 's/^llama_cpp_python-([0-9]+\.[0-9]+\.[0-9]+)\+.*/\1/')
+          # Parse 12-char llama.cpp SHA from the wheel filename (option b of the SHA-width fix).
+          # The `assert-submodule` build step emits a 7-char short SHA; CONTEXT.md locks the
+          # Release body forensics + narrative to a 12-char SHA. Re-derive here from the wheel
+          # filename's `+cu126.ll<sha12>-` segment, which is the authoritative 12-char source
+          # (Phase 2 build step computes it as `git rev-parse HEAD | cut -c1-12`
+          # and embeds it in the wheel version string).
+          LLAMA_SHA_12=$(echo "$WHEEL_NAME" | sed -E 's/^.*\+cu[0-9]+\.ll([a-f0-9]{12})-.*/\1/')
+          if [[ ! "$LLAMA_SHA_12" =~ ^[a-f0-9]{12}$ ]]; then
+            echo "::error::Failed to parse 12-char llama.cpp SHA from wheel filename '$WHEEL_NAME' (expected +cu<N>.ll<12hex>- segment; got '$LLAMA_SHA_12')"
+            exit 1
+          fi
+          # Derive cu-tag from inputs.cuda_version (NOT hardcoded — see RESEARCH.md Pitfall 8).
+          CU_TAG=$(echo '${{ inputs.cuda_version }}' | awk -F. '{printf "cu%s%s", $1, $2}')
+          TAG="v${BASE_VER}-${CU_TAG}-win"
+          # Sanity assert: tag must match the canonical shape (belt-and-suspenders vs Phase 2 filename drift).
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cu[0-9]+-win$ ]]; then
+            echo "::error::Parsed tag '$TAG' does not match ^v\\d+\\.\\d+\\.\\d+-cu\\d+-win\$ — wheel filename scheme may have drifted from Phase 2 contract"
+            exit 1
+          fi
+          {
+            echo "wheel_name=$WHEEL_NAME"
+            echo "wheel_path=$WHEEL"
+            echo "wheel_size_bytes=$WHEEL_SIZE"
+            echo "wheel_size_mib=$WHEEL_SIZE_MIB"
+            echo "wheel_sha256=$WHEEL_SHA256"
+            echo "build_date=$BUILD_DATE"
+            echo "tag=$TAG"
+            echo "base_version=$BASE_VER"
+            echo "cu_tag=$CU_TAG"
+            echo "llama_sha_12=$LLAMA_SHA_12"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 'Publish: Assemble release body'
+        id: body
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          # Random delimiter prevents collision with `EOF` literals in body content (see RESEARCH.md Pitfall 3).
+          DELIM="RELEASE_BODY_$(date +%s)_${RANDOM}"
+          {
+            echo "content<<${DELIM}"
+            cat <<BODY
+          Windows CUDA ${{ inputs.cuda_version }} wheel, built ${{ steps.meta.outputs.build_date }} against llama.cpp @ \`${{ steps.meta.outputs.llama_sha_12 }}\`.
+
+          ## Install
+
+          1. Verify your NVIDIA driver is >= 561.17 (\`nvidia-smi\`).
+          2. Download \`${{ steps.meta.outputs.wheel_name }}\` below.
+          3. \`pip install path/to/${{ steps.meta.outputs.wheel_name }}\`.
+          4. Verify: \`python -c "from llama_cpp import Llama; print('ok')"\`.
+
+          ## Build forensics
+
+          | Property | Value |
+          |---|---|
+          | llama.cpp SHA | \`${{ steps.meta.outputs.llama_sha_12 }}\` |
+          | Base version | \`${{ steps.meta.outputs.base_version }}\` |
+          | CUDA version | \`${{ inputs.cuda_version }}\` |
+          | MSVC toolset | \`${{ needs.build.outputs.selected_toolset }}\` |
+          | Python | \`${{ inputs.python_version }}\` |
+          | Wheel size | \`${{ steps.meta.outputs.wheel_size_bytes }}\` bytes (${{ steps.meta.outputs.wheel_size_mib }} MiB) |
+          | Wheel SHA-256 | \`${{ steps.meta.outputs.wheel_sha256 }}\` |
+          | Build date (UTC) | \`${{ steps.meta.outputs.build_date }}\` |
+          | Dispatch run | https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+          | Smoke-test | green (publish gated on \`needs: [build, smoke-test]\`) |
+          BODY
+            echo "${DELIM}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 'Publish: Upload wheel as GitHub Release asset'
+        uses: softprops/action-gh-release@v2
+        timeout-minutes: 5
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          body: ${{ steps.body.outputs.content }}
+          files: dist/*.whl
+          target_commitish: ${{ github.sha }}
+          fail_on_unmatched_files: true
+          prerelease: false
+          make_latest: 'true'
+          # overwrite_files defaults to true — CONTEXT.md clobber semantics for same-filename re-dispatch.
+
+      - name: 'Publish: Green forensics summary'
+        if: success()
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Publish Green — Wheel uploaded to GitHub Release
+
+          | Property | Value |
+          |---|---|
+          | Tag | \`${{ steps.meta.outputs.tag }}\` |
+          | Wheel | \`${{ steps.meta.outputs.wheel_name }}\` |
+          | Size | ${{ steps.meta.outputs.wheel_size_mib }} MiB |
+          | SHA-256 | \`${{ steps.meta.outputs.wheel_sha256 }}\` |
+          | llama.cpp | \`${{ steps.meta.outputs.llama_sha_12 }}\` |
+          | Release URL | https://github.com/${{ github.repository }}/releases/tag/${{ steps.meta.outputs.tag }} |
+          EOF
