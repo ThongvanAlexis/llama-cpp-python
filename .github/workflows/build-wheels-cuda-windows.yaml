@@ -1048,106 +1048,8 @@ jobs:
           Write-Host "Setting CUDA_PATH: $cudaRoot"
           "CUDA_PATH=$cudaRoot" >> $env:GITHUB_ENV
 
-      - name: 'Smoke-test: Create nvcuda.dll stub (no GPU driver on runner)'
-        shell: pwsh
-        timeout-minutes: 5
-        run: |
-          Set-StrictMode -Version Latest
-          $ErrorActionPreference = 'Stop'
-
-          # ggml-cuda.dll → cudart64_12.dll → nvcuda.dll (GPU driver).
-          # GitHub runners have no NVIDIA GPU, so nvcuda.dll is absent.
-          # Without it, the entire CUDA DLL chain fails to load at import time
-          # (even for CPU-only inference with n_gpu_layers=0).
-          #
-          # Solution: use Python to parse PE import tables of all CUDA DLLs,
-          # discover every function imported from nvcuda.dll, then build a stub
-          # that exports all of them returning CUDA_ERROR_NO_DEVICE (100).
-
-          $cudaBin = Join-Path $env:CONDA_PREFIX 'Library\bin'
-          $stubDir = Join-Path $env:RUNNER_TEMP 'nvcuda-stub'
-          New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
-
-          # Use Python to parse PE imports — more reliable than dumpbin text parsing.
-          # pip install pefile into the conda env (not the smoke-venv).
-          python -m pip install pefile --quiet
-          python -c @"
-          import pefile, pathlib, json
-          cuda_bin = pathlib.Path(r'$cudaBin')
-          functions = set()
-          for dll_path in sorted(cuda_bin.glob('*.dll')):
-              try:
-                  pe = pefile.PE(str(dll_path), fast_load=True)
-                  pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']])
-                  if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
-                      for entry in pe.DIRECTORY_ENTRY_IMPORT:
-                          if entry.dll and entry.dll.decode('utf-8','ignore').lower() == 'nvcuda.dll':
-                              for imp in entry.imports:
-                                  if imp.name:
-                                      functions.add(imp.name.decode('utf-8','ignore'))
-                  pe.close()
-              except Exception:
-                  pass
-          out = pathlib.Path(r'$stubDir') / 'nvcuda_imports.json'
-          out.write_text(json.dumps(sorted(functions)))
-          print(f'Discovered {len(functions)} functions imported from nvcuda.dll')
-          "@
-
-          $imports = Get-Content "$stubDir\nvcuda_imports.json" | ConvertFrom-Json
-          Write-Host "Functions to stub: $($imports.Count)"
-
-          if ($imports.Count -eq 0) {
-            # Fallback: cudart may load nvcuda.dll dynamically via LoadLibrary.
-            # Use the cuda.lib import library to extract export names instead.
-            Write-Host "No PE imports found — trying cuda.lib from CUDA toolkit..."
-            $cudaLib = Join-Path $env:CONDA_PREFIX 'Library\lib\x64\cuda.lib'
-            if (-not (Test-Path $cudaLib)) {
-              $cudaLib = Join-Path $env:CONDA_PREFIX 'Library\lib\cuda.lib'
-            }
-            if (Test-Path $cudaLib) {
-              # Setup MSVC for dumpbin
-              $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-              $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-              $vcvarsall = Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'
-
-              $libScript = "call `"$vcvarsall`" x64 >nul 2>&1 && dumpbin /linkermember:1 `"$cudaLib`""
-              $libOutput = cmd /c $libScript 2>&1 | Out-String
-              $imports = @()
-              foreach ($line in ($libOutput -split "`n")) {
-                if ($line.Trim() -match '^\s*[0-9A-Fa-f]+\s+(cu\w+)') {
-                  $imports += $Matches[1]
-                }
-              }
-              $imports = $imports | Sort-Object -Unique
-              Write-Host "Extracted $($imports.Count) symbols from cuda.lib"
-            }
-          }
-
-          if ($imports.Count -eq 0) {
-            throw "Cannot discover nvcuda.dll exports from PE imports or cuda.lib"
-          }
-
-          # Generate C source — every export returns 100 (CUDA_ERROR_NO_DEVICE).
-          # On x64 Windows, a no-arg stub is safe regardless of real signature.
-          $lines = @('#include <windows.h>')
-          $lines += 'BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r) { return TRUE; }'
-          foreach ($fn in $imports) {
-            $lines += "__declspec(dllexport) int $fn() { return 100; }"
-          }
-          ($lines -join "`n") | Out-File -FilePath "$stubDir\nvcuda_stub.c" -Encoding ascii
-
-          # Find MSVC and build
-          $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          $vcvarsall = Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'
-          $buildCmd = "call `"$vcvarsall`" x64 && cl /nologo /O2 /LD `"$stubDir\nvcuda_stub.c`" /Fe`"$stubDir\nvcuda.dll`" /link /DLL"
-          cmd /c $buildCmd
-          if (-not (Test-Path "$stubDir\nvcuda.dll")) {
-            throw "Failed to build nvcuda.dll stub"
-          }
-
-          Copy-Item "$stubDir\nvcuda.dll" "$cudaBin\nvcuda.dll"
-          Write-Host "OK: nvcuda.dll stub ($($imports.Count) exports) placed at $cudaBin\nvcuda.dll"
+      # nvcuda.dll stub is created after wheel install (step below) so we can
+      # scan both CUDA toolkit DLLs and the wheel's DLLs for nvcuda.dll imports.
 
       - name: 'Smoke-test: Disable WER crash dialog'
         shell: pwsh
@@ -1252,6 +1154,92 @@ jobs:
             $newEntries = ($addPath -join ';')
             "PATH=$newEntries;$env:PATH" >> $env:GITHUB_ENV
           }
+
+      - name: 'Smoke-test: Create nvcuda.dll stub (no GPU driver on runner)'
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          # ggml-cuda.dll → cudart64_12.dll → nvcuda.dll (GPU driver).
+          # GitHub runners have no NVIDIA GPU, so nvcuda.dll is absent.
+          # Without it, the entire CUDA DLL chain fails to load at import time
+          # (even for CPU-only inference with n_gpu_layers=0).
+          #
+          # Scan BOTH the CUDA toolkit DLLs (Library\bin) AND the wheel's DLLs
+          # (llama_cpp\lib) to discover every function imported from nvcuda.dll,
+          # then build a stub that exports all of them.
+
+          $cudaBin = Join-Path $env:CONDA_PREFIX 'Library\bin'
+          $stubDir = Join-Path $env:RUNNER_TEMP 'nvcuda-stub'
+          New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
+
+          $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
+          $spDir = & $venvPython -c "import sysconfig; print(sysconfig.get_path('platlib'))"
+          $wheelLibDir = Join-Path $spDir 'llama_cpp\lib'
+
+          # Scan all DLL directories for nvcuda.dll imports using pefile.
+          python -m pip install pefile --quiet
+          python -c @"
+          import pefile, pathlib, json
+          scan_dirs = [
+              pathlib.Path(r'$cudaBin'),
+              pathlib.Path(r'$wheelLibDir'),
+          ]
+          functions = set()
+          for scan_dir in scan_dirs:
+              if not scan_dir.exists():
+                  print(f'Skip (not found): {scan_dir}')
+                  continue
+              for dll_path in sorted(scan_dir.glob('*.dll')):
+                  try:
+                      pe = pefile.PE(str(dll_path), fast_load=True)
+                      pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']])
+                      if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+                          for entry in pe.DIRECTORY_ENTRY_IMPORT:
+                              if entry.dll and entry.dll.decode('utf-8','ignore').lower() == 'nvcuda.dll':
+                                  count = 0
+                                  for imp in entry.imports:
+                                      if imp.name:
+                                          functions.add(imp.name.decode('utf-8','ignore'))
+                                          count += 1
+                                  if count > 0:
+                                      print(f'  {dll_path.name}: {count} nvcuda imports')
+                      pe.close()
+                  except Exception:
+                      pass
+          out = pathlib.Path(r'$stubDir') / 'nvcuda_imports.json'
+          out.write_text(json.dumps(sorted(functions)))
+          print(f'Total: {len(functions)} unique functions to stub')
+          "@
+
+          $imports = Get-Content "$stubDir\nvcuda_imports.json" | ConvertFrom-Json
+          if ($imports.Count -eq 0) {
+            throw "No nvcuda.dll imports found — cannot create stub"
+          }
+
+          # Generate C source — every export returns 100 (CUDA_ERROR_NO_DEVICE).
+          # On x64 Windows, a no-arg stub is safe regardless of real signature.
+          $lines = @('#include <windows.h>')
+          $lines += 'BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r) { return TRUE; }'
+          foreach ($fn in $imports) {
+            $lines += "__declspec(dllexport) int $fn() { return 100; }"
+          }
+          ($lines -join "`n") | Out-File -FilePath "$stubDir\nvcuda_stub.c" -Encoding ascii
+
+          # Build with MSVC
+          $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vcvarsall = Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'
+          $buildCmd = "call `"$vcvarsall`" x64 && cl /nologo /O2 /LD `"$stubDir\nvcuda_stub.c`" /Fe`"$stubDir\nvcuda.dll`" /link /DLL"
+          cmd /c $buildCmd
+          if (-not (Test-Path "$stubDir\nvcuda.dll")) {
+            throw "Failed to build nvcuda.dll stub"
+          }
+
+          Copy-Item "$stubDir\nvcuda.dll" "$cudaBin\nvcuda.dll"
+          Write-Host "OK: nvcuda.dll stub ($($imports.Count) exports) placed at $cudaBin\nvcuda.dll"
 
       - name: 'Smoke-test: Assert wheel installed correctly'
         shell: pwsh
