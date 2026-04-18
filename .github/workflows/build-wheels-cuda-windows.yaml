@@ -765,12 +765,9 @@ jobs:
             # scikit-build-core refuses every channel we have tried for flipping
             # CMAKE_BUILD_TYPE to Release (pyproject.toml, -C, env var, CMAKE_ARGS
             # all silently ignored), so the project is still configured Debug.
-            # The Release CRT is already forced via CMAKE_MSVC_RUNTIME_LIBRARY, but
-            # Debug config still injects `/Od` (no optimization) and `/RTC1` (runtime
-            # checks). `/RTC1` throws 0xe06d7363 inside llama_tokenize on
-            # uninitialized-memory reads that Release builds tolerate. Override the
-            # DEBUG-config compile flags to Release-like values (`/O2 /Ob2`) to
-            # remove both `/Od` and `/RTC1`.
+            # CMAKE_MSVC_RUNTIME_LIBRARY forces the Release CRT. CMAKE_*_FLAGS_DEBUG
+            # overrides strip /Od and /RTC1 so the actual compile uses Release-like
+            # codegen (/O2 /Ob2 /DNDEBUG -MD) even though BUILD_TYPE=Debug remains.
             '-DCMAKE_C_FLAGS_DEBUG="/O2 /Ob2 /DNDEBUG"'
             '-DCMAKE_CXX_FLAGS_DEBUG="/O2 /Ob2 /DNDEBUG"'
             '-DCMAKE_CUDA_FLAGS_DEBUG="-O3 -DNDEBUG"'
@@ -1390,23 +1387,65 @@ jobs:
           Write-Host "OK: all expected CUDA architectures present: $($expectedArchs -join ', ')"
           "arch_list=$foundArchs" >> $env:GITHUB_OUTPUT
 
-      - name: 'Smoke-test: Inference test'
-        id: inference-test
-        shell: pwsh
+      - name: 'Smoke-test: Restore HF model cache'
+        id: hf-model-cache
+        uses: actions/cache@v4
         timeout-minutes: 5
+        with:
+          # Windows: %USERPROFILE%\.cache\huggingface\hub
+          path: ~/.cache/huggingface/hub
+          key: smoke-test-hf-lmstudio-community-Qwen3.5-0.8B-GGUF-Qwen3.5-0.8B-Q8_0
+
+      - name: 'Smoke-test: Download real GGUF for inference'
+        shell: pwsh
+        timeout-minutes: 10
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
 
           $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
 
-          # ST-06: load model, generate 2 tokens, capture output.
+          # The committed tiny-llama.gguf fixture (27 KB, n_vocab=32, n_layer=1)
+          # is too degenerate and triggers a C++ throw (0xe06d7363) inside
+          # llama_tokenize on Windows — likely BPE/SPM code hitting a path that
+          # assumes realistic vocab size. Replace with a real-but-small GGUF.
+          # Using the same model as .github/workflows/test.yaml so we benefit
+          # from a known-good file and shared cache semantics.
+
+          & $venvPython -m pip install huggingface-hub --quiet
+          if ($LASTEXITCODE -ne 0) { throw "Failed to install huggingface-hub" }
+
+          $modelPath = & $venvPython -c "from huggingface_hub import hf_hub_download; print(hf_hub_download(repo_id='lmstudio-community/Qwen3.5-0.8B-GGUF', filename='Qwen3.5-0.8B-Q8_0.gguf'))"
+          if ($LASTEXITCODE -ne 0) { throw "hf_hub_download failed" }
+          $modelPath = $modelPath.Trim()
+          if (-not (Test-Path $modelPath)) { throw "Downloaded GGUF not found at $modelPath" }
+          $sizeMb = [math]::Round((Get-Item $modelPath).Length / 1MB, 2)
+          Write-Host "OK: model available at $modelPath ($sizeMb MB, cache hit=${{ steps.hf-model-cache.outputs.cache-hit }})"
+          "GGUF_PATH=$modelPath" >> $env:GITHUB_ENV
+
+      - name: 'Smoke-test: Inference test'
+        id: inference-test
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $venvPython = Join-Path (Resolve-Path '.smoke-venv') 'Scripts\python.exe'
+          $modelPath = $env:GGUF_PATH
+          if (-not $modelPath) { throw "GGUF_PATH env var not set — download step failed" }
+          Write-Host "Using model: $modelPath"
+
+          # ST-06: load real model, generate 2 tokens, capture output.
           # Runs in subprocess so segfault = non-zero exit, not step death.
           # n_gpu_layers=0 forces CPU fallback (runner has no GPU).
+          # Forward GGUF_PATH via env to the subprocess.
+          $env:GGUF_PATH = $modelPath
           $inferenceScript = @"
-          import sys
+          import os, sys
           from llama_cpp import Llama
-          llm = Llama(model_path='llm_for_ci_test/tiny-llama.gguf', n_ctx=64, n_gpu_layers=0)
+          model_path = os.environ['GGUF_PATH']
+          llm = Llama(model_path=model_path, n_ctx=128, n_gpu_layers=0, verbose=False)
           output = llm('hi', max_tokens=2)
           text = output['choices'][0]['text']
           print(f'INFERENCE_OUTPUT={text}')
