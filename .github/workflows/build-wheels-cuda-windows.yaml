@@ -1721,7 +1721,9 @@ jobs:
         timeout-minutes: 2
         run: |
           set -euo pipefail
-          WHEEL=$(ls dist/*.whl | head -1)
+          shopt -s nullglob
+          files=(dist/*.whl)
+          WHEEL="${files[0]:-}"
           if [[ -z "$WHEEL" ]]; then
             echo "::error::No wheel found in dist/ after artifact download (expected name cuda-wheel from build job)"
             exit 1
