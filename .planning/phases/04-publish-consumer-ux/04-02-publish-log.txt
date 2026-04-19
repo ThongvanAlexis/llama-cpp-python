@@ -1,0 +1,194 @@
+publish	Set up job	﻿2026-04-19T09:20:29.1395759Z Current runner version: '2.333.1'
+publish	Set up job	2026-04-19T09:20:29.1418451Z ##[group]Runner Image Provisioner
+publish	Set up job	2026-04-19T09:20:29.1419322Z Hosted Compute Agent
+publish	Set up job	2026-04-19T09:20:29.1419862Z Version: 20260213.493
+publish	Set up job	2026-04-19T09:20:29.1420647Z Commit: 5c115507f6dd24b8de37d8bbe0bb4509d0cc0fa3
+publish	Set up job	2026-04-19T09:20:29.1421431Z Build Date: 2026-02-13T00:28:41Z
+publish	Set up job	2026-04-19T09:20:29.1422161Z Worker ID: {bc6d934b-c659-47ae-9682-db5cbd15b772}
+publish	Set up job	2026-04-19T09:20:29.1422860Z Azure Region: westus3
+publish	Set up job	2026-04-19T09:20:29.1423477Z ##[endgroup]
+publish	Set up job	2026-04-19T09:20:29.1425178Z ##[group]Operating System
+publish	Set up job	2026-04-19T09:20:29.1425791Z Ubuntu
+publish	Set up job	2026-04-19T09:20:29.1426288Z 24.04.4
+publish	Set up job	2026-04-19T09:20:29.1426807Z LTS
+publish	Set up job	2026-04-19T09:20:29.1427235Z ##[endgroup]
+publish	Set up job	2026-04-19T09:20:29.1427761Z ##[group]Runner Image
+publish	Set up job	2026-04-19T09:20:29.1428329Z Image: ubuntu-24.04
+publish	Set up job	2026-04-19T09:20:29.1428808Z Version: 20260413.86.1
+publish	Set up job	2026-04-19T09:20:29.1429845Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260413.86/images/ubuntu/Ubuntu2404-Readme.md
+publish	Set up job	2026-04-19T09:20:29.1431645Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260413.86
+publish	Set up job	2026-04-19T09:20:29.1432592Z ##[endgroup]
+publish	Set up job	2026-04-19T09:20:29.1433611Z ##[group]GITHUB_TOKEN Permissions
+publish	Set up job	2026-04-19T09:20:29.1435597Z Contents: write
+publish	Set up job	2026-04-19T09:20:29.1436290Z Metadata: read
+publish	Set up job	2026-04-19T09:20:29.1436789Z ##[endgroup]
+publish	Set up job	2026-04-19T09:20:29.1438876Z Secret source: Actions
+publish	Set up job	2026-04-19T09:20:29.1439666Z Prepare workflow directory
+publish	Set up job	2026-04-19T09:20:29.1912874Z Prepare all required actions
+publish	Set up job	2026-04-19T09:20:29.1952651Z Getting action download info
+publish	Set up job	2026-04-19T09:20:29.5943730Z Download action repository 'actions/download-artifact@v4' (SHA:d3f86a106a0bac45b974a628896c90dbdf5c8093)
+publish	Set up job	2026-04-19T09:20:30.7002100Z Download action repository 'softprops/action-gh-release@v2' (SHA:3bb12739c298aeb8a4eeaf626c5b8d85266b0e65)
+publish	Set up job	2026-04-19T09:20:31.4965734Z Complete job name: publish
+publish	Publish: Download wheel artifact	﻿2026-04-19T09:20:31.5696681Z ##[group]Run actions/download-artifact@v4
+publish	Publish: Download wheel artifact	2026-04-19T09:20:31.5697982Z with:
+publish	Publish: Download wheel artifact	2026-04-19T09:20:31.5698652Z   name: cuda-wheel
+publish	Publish: Download wheel artifact	2026-04-19T09:20:31.5699356Z   path: ./dist
+publish	Publish: Download wheel artifact	2026-04-19T09:20:31.5700062Z   merge-multiple: false
+publish	Publish: Download wheel artifact	2026-04-19T09:20:31.5701171Z   repository: ThongvanAlexis/llama-cpp-python
+publish	Publish: Download wheel artifact	2026-04-19T09:20:31.5702164Z   run-id: 24623672816
+publish	Publish: Download wheel artifact	2026-04-19T09:20:31.5703135Z ##[endgroup]
+publish	Publish: Download wheel artifact	2026-04-19T09:20:31.7691213Z Downloading single artifact
+publish	Publish: Download wheel artifact	2026-04-19T09:20:32.0194641Z Preparing to download the following artifacts:
+publish	Publish: Download wheel artifact	2026-04-19T09:20:32.0196750Z - cuda-wheel (ID: 6517113259, Size: 356872084, Expected Digest: sha256:544bdf1b13ec3a0ab4ec53dd5a3b6567607f957afa0ee207fff6e5e70d6de56f)
+publish	Publish: Download wheel artifact	2026-04-19T09:20:32.1888487Z Redirecting to blob download url: https://productionresultssa7.blob.core.windows.net/actions-results/6118f67f-fdb9-481c-a930-89c6f1fcb064/workflow-job-run-c0afc9b8-67ed-5528-9740-b92e1f7a77ce/artifacts/77d7392186d57eb083c226d7b7c6f733eefbd3b170ef7aeae51c9c93edb34474.zip
+publish	Publish: Download wheel artifact	2026-04-19T09:20:32.1892959Z Starting download of artifact to: /home/runner/work/llama-cpp-python/llama-cpp-python/dist
+publish	Publish: Download wheel artifact	2026-04-19T09:20:32.5039658Z (node:2073) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+publish	Publish: Download wheel artifact	2026-04-19T09:20:32.5041328Z (Use `node --trace-deprecation ...` to show where the warning was created)
+publish	Publish: Download wheel artifact	2026-04-19T09:20:44.0142403Z SHA256 digest of downloaded artifact is 544bdf1b13ec3a0ab4ec53dd5a3b6567607f957afa0ee207fff6e5e70d6de56f
+publish	Publish: Download wheel artifact	2026-04-19T09:20:44.0143609Z Artifact download completed successfully.
+publish	Publish: Download wheel artifact	2026-04-19T09:20:44.0144188Z Total of 1 artifact(s) downloaded
+publish	Publish: Download wheel artifact	2026-04-19T09:20:44.0152575Z Download artifact has finished successfully
+publish	Publish: Compute release metadata	﻿2026-04-19T09:20:44.0361932Z ##[group]Run set -euo pipefail
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0362357Z [36;1mset -euo pipefail[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0362599Z [36;1mshopt -s nullglob[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0362820Z [36;1mfiles=(dist/*.whl)[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0363034Z [36;1mWHEEL="${files[0]:-}"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0363268Z [36;1mif [[ -z "$WHEEL" ]]; then[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0363982Z [36;1m  echo "::error::No wheel found in dist/ after artifact download (expected name cuda-wheel from build job)"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0364442Z [36;1m  exit 1[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0364626Z [36;1mfi[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0364836Z [36;1mWHEEL_NAME=$(basename "$WHEEL")[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0365105Z [36;1mWHEEL_SIZE=$(stat -c%s "$WHEEL")[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0365514Z [36;1mWHEEL_SIZE_MIB=$(awk -v s="$WHEEL_SIZE" 'BEGIN { printf "%.1f", s/1024/1024 }')[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0365956Z [36;1mWHEEL_SHA256=$(sha256sum "$WHEEL" | cut -d' ' -f1)[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0366267Z [36;1mBUILD_DATE=$(date -u +%Y-%m-%d)[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0366744Z [36;1m# Parse base_version from `llama_cpp_python-<base>+cu126.ll<sha>-cp...` (Phase 2 locked scheme).[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0367353Z [36;1mBASE_VER=$(echo "$WHEEL_NAME" | sed -E 's/^llama_cpp_python-([0-9]+\.[0-9]+\.[0-9]+)\+.*/\1/')[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0367916Z [36;1m# Parse 12-char llama.cpp SHA from the wheel filename (option b of the SHA-width fix).[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0368467Z [36;1m# The `assert-submodule` build step emits a 7-char short SHA; CONTEXT.md locks the[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0369018Z [36;1m# Release body forensics + narrative to a 12-char SHA. Re-derive here from the wheel[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0369560Z [36;1m# filename's `+cu126.ll<sha12>-` segment, which is the authoritative 12-char source[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0370057Z [36;1m# (Phase 2 build step computes it as `git rev-parse HEAD | cut -c1-12`[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0370693Z [36;1m# and embeds it in the wheel version string).[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0371131Z [36;1mLLAMA_SHA_12=$(echo "$WHEEL_NAME" | sed -E 's/^.*\+cu[0-9]+\.ll([a-f0-9]{12})-.*/\1/')[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0371563Z [36;1mif [[ ! "$LLAMA_SHA_12" =~ ^[a-f0-9]{12}$ ]]; then[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0372180Z [36;1m  echo "::error::Failed to parse 12-char llama.cpp SHA from wheel filename '$WHEEL_NAME' (expected +cu<N>.ll<12hex>- segment; got '$LLAMA_SHA_12')"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0372759Z [36;1m  exit 1[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0372943Z [36;1mfi[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0373290Z [36;1m# Derive cu-tag from inputs.cuda_version (NOT hardcoded — see RESEARCH.md Pitfall 8).[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0373778Z [36;1mCU_TAG=$(echo '12.6.3' | awk -F. '{printf "cu%s%s", $1, $2}')[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0374222Z [36;1mTAG="v${BASE_VER}-${CU_TAG}-win"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0374701Z [36;1m# Sanity assert: tag must match the canonical shape (belt-and-suspenders vs Phase 2 filename drift).[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0375224Z [36;1mif [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cu[0-9]+-win$ ]]; then[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0375853Z [36;1m  echo "::error::Parsed tag '$TAG' does not match ^v\\d+\\.\\d+\\.\\d+-cu\\d+-win\$ — wheel filename scheme may have drifted from Phase 2 contract"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0376432Z [36;1m  exit 1[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0376608Z [36;1mfi[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0376765Z [36;1m{[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0376946Z [36;1m  echo "wheel_name=$WHEEL_NAME"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0377206Z [36;1m  echo "wheel_path=$WHEEL"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0377456Z [36;1m  echo "wheel_size_bytes=$WHEEL_SIZE"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0377744Z [36;1m  echo "wheel_size_mib=$WHEEL_SIZE_MIB"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0378021Z [36;1m  echo "wheel_sha256=$WHEEL_SHA256"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0378320Z [36;1m  echo "build_date=$BUILD_DATE"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0378561Z [36;1m  echo "tag=$TAG"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0378779Z [36;1m  echo "base_version=$BASE_VER"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0379018Z [36;1m  echo "cu_tag=$CU_TAG"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0379256Z [36;1m  echo "llama_sha_12=$LLAMA_SHA_12"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0379503Z [36;1m} >> "$GITHUB_OUTPUT"[0m
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0404262Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+publish	Publish: Compute release metadata	2026-04-19T09:20:44.0404617Z ##[endgroup]
+publish	Publish: Assemble release body	﻿2026-04-19T09:20:44.3463970Z ##[group]Run set -euo pipefail
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3464319Z [36;1mset -euo pipefail[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3464815Z [36;1m# Random delimiter prevents collision with `EOF` literals in body content (see RESEARCH.md Pitfall 3).[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3465597Z [36;1mDELIM="RELEASE_BODY_$(date +%s)_${RANDOM}"[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3465866Z [36;1m{[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3466048Z [36;1m  echo "content<<${DELIM}"[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3466277Z [36;1m  cat <<BODY[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3466606Z [36;1mWindows CUDA 12.6.3 wheel, built 2026-04-19 against llama.cpp @ \`227ed28e128e\`.[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3466980Z [36;1m[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3467142Z [36;1m## Install[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3467314Z [36;1m[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3467560Z [36;1m1. Verify your NVIDIA driver is >= 561.17 (\`nvidia-smi\`).[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3468095Z [36;1m2. Download \`llama_cpp_python-0.3.20+cu126.ll227ed28e128e-cp311-cp311-win_amd64.whl\` below.[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3468735Z [36;1m3. \`pip install path/to/llama_cpp_python-0.3.20+cu126.ll227ed28e128e-cp311-cp311-win_amd64.whl\`.[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3469325Z [36;1m4. Verify: \`python -c "from llama_cpp import Llama; print('ok')"\`.[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3469685Z [36;1m[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3469859Z [36;1m## Build forensics[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3470068Z [36;1m[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3470233Z [36;1m| Property | Value |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3470711Z [36;1m|---|---|[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3470946Z [36;1m| llama.cpp SHA | \`227ed28e128e\` |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3471216Z [36;1m| Base version | \`0.3.20\` |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3471462Z [36;1m| CUDA version | \`12.6.3\` |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3471696Z [36;1m| MSVC toolset | \`14.44\` |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3471928Z [36;1m| Python | \`3.11\` |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3472180Z [36;1m| Wheel size | \`356871830\` bytes (340.3 MiB) |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3472633Z [36;1m| Wheel SHA-256 | \`47649ad0f027fe7364a1a64d4f4e5d7bc2e49d75f471e6c894e3fb7c8adbeed8\` |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3473078Z [36;1m| Build date (UTC) | \`2026-04-19\` |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3473542Z [36;1m| Dispatch run | https://github.com/ThongvanAlexis/llama-cpp-python/actions/runs/24623672816 |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3474109Z [36;1m| Smoke-test | green (publish gated on \`needs: [build, smoke-test]\`) |[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3474460Z [36;1mBODY[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3474630Z [36;1m  echo "${DELIM}"[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3474837Z [36;1m} >> "$GITHUB_OUTPUT"[0m
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3495336Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+publish	Publish: Assemble release body	2026-04-19T09:20:44.3495669Z ##[endgroup]
+publish	Publish: Upload wheel as GitHub Release asset	﻿2026-04-19T09:20:44.4622072Z ##[group]Run softprops/action-gh-release@v2
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4622407Z with:
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4622587Z   tag_name: v0.3.20-cu126-win
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4622810Z   name: v0.3.20-cu126-win
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4625741Z   body: Windows CUDA 12.6.3 wheel, built 2026-04-19 against llama.cpp @ `227ed28e128e`.
+publish	Publish: Upload wheel as GitHub Release asset	
+publish	Publish: Upload wheel as GitHub Release asset	## Install
+publish	Publish: Upload wheel as GitHub Release asset	
+publish	Publish: Upload wheel as GitHub Release asset	1. Verify your NVIDIA driver is >= 561.17 (`nvidia-smi`).
+publish	Publish: Upload wheel as GitHub Release asset	2. Download `llama_cpp_python-0.3.20+cu126.ll227ed28e128e-cp311-cp311-win_amd64.whl` below.
+publish	Publish: Upload wheel as GitHub Release asset	3. `pip install path/to/llama_cpp_python-0.3.20+cu126.ll227ed28e128e-cp311-cp311-win_amd64.whl`.
+publish	Publish: Upload wheel as GitHub Release asset	4. Verify: `python -c "from llama_cpp import Llama; print('ok')"`.
+publish	Publish: Upload wheel as GitHub Release asset	
+publish	Publish: Upload wheel as GitHub Release asset	## Build forensics
+publish	Publish: Upload wheel as GitHub Release asset	
+publish	Publish: Upload wheel as GitHub Release asset	| Property | Value |
+publish	Publish: Upload wheel as GitHub Release asset	|---|---|
+publish	Publish: Upload wheel as GitHub Release asset	| llama.cpp SHA | `227ed28e128e` |
+publish	Publish: Upload wheel as GitHub Release asset	| Base version | `0.3.20` |
+publish	Publish: Upload wheel as GitHub Release asset	| CUDA version | `12.6.3` |
+publish	Publish: Upload wheel as GitHub Release asset	| MSVC toolset | `14.44` |
+publish	Publish: Upload wheel as GitHub Release asset	| Python | `3.11` |
+publish	Publish: Upload wheel as GitHub Release asset	| Wheel size | `356871830` bytes (340.3 MiB) |
+publish	Publish: Upload wheel as GitHub Release asset	| Wheel SHA-256 | `47649ad0f027fe7364a1a64d4f4e5d7bc2e49d75f471e6c894e3fb7c8adbeed8` |
+publish	Publish: Upload wheel as GitHub Release asset	| Build date (UTC) | `2026-04-19` |
+publish	Publish: Upload wheel as GitHub Release asset	| Dispatch run | https://github.com/ThongvanAlexis/llama-cpp-python/actions/runs/24623672816 |
+publish	Publish: Upload wheel as GitHub Release asset	| Smoke-test | green (publish gated on `needs: [build, smoke-test]`) |
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4629322Z   files: dist/*.whl
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4629606Z   target_commitish: 973aeff4441c38ac7e9c78e6db15518623b34dc1
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4629914Z   fail_on_unmatched_files: true
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4630137Z   prerelease: false
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4630323Z   make_latest: true
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4630661Z   overwrite_files: true
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4630980Z   token: ***
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.4631380Z ##[endgroup]
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:44.8533515Z 👩‍🏭 Creating new GitHub release for tag v0.3.20-cu126-win using commit "973aeff4441c38ac7e9c78e6db15518623b34dc1"...
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:45.7257968Z Release 310840725 is not yet discoverable by tag v0.3.20-cu126-win, retrying... (2 retries remaining)
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:20:47.0719331Z ⬆️ Uploading llama_cpp_python-0.3.20+cu126.ll227ed28e128e-cp311-cp311-win_amd64.whl...
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:21:02.2717561Z ✅ Uploaded llama_cpp_python-0.3.20+cu126.ll227ed28e128e-cp311-cp311-win_amd64.whl
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:21:02.2718537Z Finalizing release...
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:21:03.0301882Z Getting assets list...
+publish	Publish: Upload wheel as GitHub Release asset	2026-04-19T09:21:03.1921111Z 🎉 Release ready at https://github.com/ThongvanAlexis/llama-cpp-python/releases/tag/v0.3.20-cu126-win
+publish	Publish: Green forensics summary	﻿2026-04-19T09:21:03.2331388Z ##[group]Run set -euo pipefail
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2331742Z [36;1mset -euo pipefail[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2331997Z [36;1mcat >> "$GITHUB_STEP_SUMMARY" <<EOF[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2391071Z [36;1m## Publish Green — Wheel uploaded to GitHub Release[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2391627Z [36;1m[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2391971Z [36;1m| Property | Value |[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2392426Z [36;1m|---|---|[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2392826Z [36;1m| Tag | \`v0.3.20-cu126-win\` |[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2393658Z [36;1m| Wheel | \`llama_cpp_python-0.3.20+cu126.ll227ed28e128e-cp311-cp311-win_amd64.whl\` |[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2394398Z [36;1m| Size | 340.3 MiB |[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2395042Z [36;1m| SHA-256 | \`47649ad0f027fe7364a1a64d4f4e5d7bc2e49d75f471e6c894e3fb7c8adbeed8\` |[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2395807Z [36;1m| llama.cpp | \`227ed28e128e\` |[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2396707Z [36;1m| Release URL | https://github.com/ThongvanAlexis/llama-cpp-python/releases/tag/v0.3.20-cu126-win |[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2397601Z [36;1mEOF[0m
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2421246Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+publish	Publish: Green forensics summary	2026-04-19T09:21:03.2421582Z ##[endgroup]
+publish	Complete job	﻿2026-04-19T09:21:03.2531941Z Cleaning up orphan processes
+publish	Complete job	2026-04-19T09:21:03.2909789Z ##[warning]Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/download-artifact@v4, softprops/action-gh-release@v2. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
