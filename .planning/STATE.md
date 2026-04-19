@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-stopped_at: Completed 04-01-PLAN.md (publish job + lint-gate + README + REQUIREMENTS/PROJECT amendments); next is 04-02 dispatch checkpoint
-last_updated: "2026-04-18T23:13:47.882Z"
-last_activity: 2026-04-18 — Phase 4 Plan 01 COMPLETE. Publish job + lint-gate + fork-focused README + REQUIREMENTS/PROJECT scope-reduction amendments (PUB-03..10/DOC-03 -> Out of Scope, DOC-01 rewritten to manual-download wording). 3 task commits, 22/22 static invariants green, actionlint passes. Ready for Plan 04-02 (dispatch verification).
+status: verifying
+stopped_at: "Completed 04-02-PLAN.md (green end-to-end dispatch + live release v0.3.20-cu126-win); Phase 4 ready for /gsd:verify-work"
+last_updated: "2026-04-19T10:19:19.012Z"
+last_activity: 2026-04-19 — Phase 4 Plan 02 COMPLETE. Green end-to-end workflow_dispatch (run 24623672816) on target commit 973aeff: build + smoke-test + publish + lint-workflow all success. Release v0.3.20-cu126-win live with byte-identical wheel (SHA-256 47649ad0...adbeed8), 12-char llama.cpp SHA 227ed28e128e in body narrative + forensics table + wheel filename (DOC-05 satisfied). In-flight deviations: SC2012 fix (973aeff) + CUDA-bundling disclosure two-path patch (d52a043 + 1d1876b). Dispatched from windows-build branch; both main and windows-build now in sync at 1d1876b on origin. Phase 4 ready for /gsd:verify-work to close v1 milestone.
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
-  percent: 88
+  completed_plans: 8
+  percent: 100
 ---
 
 # Project State
@@ -20,17 +20,17 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-04-15)
 
-**Core value:** Produce a Windows x64 CUDA wheel that actually works at runtime (loads a model, runs inference without segfault) and is installable via `pip install llama-cpp-python --extra-index-url https://<user>.github.io/llama-cpp-python/whl/cu126`.
-**Current focus:** Phase 1 COMPLETE. Ready for /gsd:verify-work, then Phase 2 (Build & Cache).
+**Core value:** Produce a Windows x64 CUDA wheel that actually works at runtime (loads a model, runs inference without segfault) and is consumer-installable via manual download from GitHub Releases (`pip install path/to/llama_cpp_python-<ver>+cu126.ll<sha>-cp311-cp311-win_amd64.whl`).
+**Current focus:** Phase 4 COMPLETE. All 8 plans green, v1 success criteria met on a live dispatch. Ready for /gsd:verify-work 04 to close the v1 milestone formally.
 
 ## Current Position
 
-Phase: 4 of 4 (Publish & Consumer UX) -- IN PROGRESS
-Plan: 1 of 2 in current phase (04-01 complete; 04-02 dispatch-verification checkpoint remaining)
-Status: Plan 04-01 complete. Publish job + lint-gate + fork-focused README + REQUIREMENTS/PROJECT scope-reduction amendments landed. actionlint passes; 22/22 overall static invariants green. Ready for 04-02 (dispatch verification checkpoint).
-Last activity: 2026-04-18 — Phase 4 Plan 01 COMPLETE. Publish job appended to workflow YAML (softprops/action-gh-release@v2, byte-identical wheel upload at v<base>-cu126-win tag, 12-char llama.cpp SHA parsed from wheel filename, full forensics body). Anchored publish-gate presence-grep added to lint-workflow. Fork-focused README (~110 lines) + README.upstream.md preservation + REQUIREMENTS.md PUB-03..10/DOC-03 Out-of-Scope amendment + PROJECT.md Core Value rewrite + Key Decisions 2026-04-19 row. 3 task commits (8441180, b94935c, 4bb91d9).
+Phase: 4 of 4 (Publish & Consumer UX) -- COMPLETE
+Plan: 2 of 2 in current phase (both complete)
+Status: Plan 04-02 complete. Green end-to-end workflow_dispatch (run 24623672816) proved the publish pipeline works live: build + smoke-test + publish + lint-workflow all green, live Release at v0.3.20-cu126-win with byte-identical wheel upload + DOC-05-compliant forensics body. Ready for /gsd:verify-work 04 to close the v1 milestone.
+Last activity: 2026-04-19 — Phase 4 Plan 02 COMPLETE. Release v0.3.20-cu126-win live with wheel SHA-256 47649ad0...adbeed8 and 12-char llama.cpp SHA 227ed28e128e in body narrative + forensics table + wheel filename. Dispatched from windows-build branch; both main and windows-build now at origin HEAD 1d1876b. Commits: e110c8d, e58d938, 973aeff (SC2012 fix = release target commit), 9bb1da6 (Task 1 forensics), d52a043 (CUDA-disclosure two-path patch), 1d1876b (forensics refresh).
 
-Progress: [█████████░] 88% (7 plans complete of 8 total: Phase 1: 3/3, Phase 2: 2/2, Phase 3: 1/1, Phase 4: 1/2)
+Progress: [██████████] 100% (8 plans complete of 8 total: Phase 1: 3/3, Phase 2: 2/2, Phase 3: 1/1, Phase 4: 2/2)
 
 ## Performance Metrics
 
@@ -45,8 +45,8 @@ Progress: [█████████░] 88% (7 plans complete of 8 total: Pha
 |-------|-------|-------|----------|
 | 1. Scaffold & Toolchain Pinning | 3/3 | ~28.1h | ~9.3h |
 | 2. Build & Cache | 2/2 | ~multi-session | ~variable |
-| 3. Smoke Test (Publish Gate) | 0 | — | — |
-| 4. Publish & Consumer UX | 0 | — | — |
+| 3. Smoke Test (Publish Gate) | 1/1 | ~multi-session | ~multi-session |
+| 4. Publish & Consumer UX | 2/2 | ~8h 8m | ~4h |
 
 **Recent Trend:**
 - Last 5 plans: P1-02 (~24h multi-session), P1-03 (~4h), P2-01 (~4 min), P2-02 (multi-session with 6+ dispatch fix iterations)
@@ -59,6 +59,7 @@ Progress: [█████████░] 88% (7 plans complete of 8 total: Pha
 | Phase 02-build-cache P01 | ~4 min | 2 tasks | 1 files |
 | Phase 02-build-cache P02 | ~multi-session | 2 tasks | 1 files |
 | Phase 04-publish-consumer-ux P01 | ~8 min | 3 tasks | 4 files |
+| Phase 04-publish-consumer-ux P02 | ~8h (dispatch 2h1m + remediation) | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,8 @@ Recent decisions affecting current work (from PROJECT.md + research):
 - [Phase 04-publish-consumer-ux]: 2026-04-19 scope reduction: dropped gh-pages PEP 503 pip index (PUB-03..PUB-10 + DOC-03) in favour of Release-only publishing with manual download; applied via REQUIREMENTS.md Out of Scope move + PROJECT.md Key Decisions row
 - [Phase 04-publish-consumer-ux]: 12-char llama.cpp SHA for Release body forensics parsed from wheel filename (option b of SHA-width fix), NOT via new assert-submodule output — keeps Phase 1 step untouched
 - [Phase 04-publish-consumer-ux]: Lint-workflow publish-gate uses anchored ^    needs[:]... pattern so prose/comments mentioning the phrase don't trigger the exactly-1-match invariant; error strings paraphrased ('colon'/'dash') to stay regex-invisible
+- [Phase 04-publish-consumer-ux]: 2026-04-19 Plan 04-02 dispatch-verification complete. Dispatched against windows-build branch (both branches now in sync on origin); release v0.3.20-cu126-win live at target commit 973aeff with wheel SHA-256 47649ad0...adbeed8. 12-char llama.cpp SHA 227ed28e128e rendered in body narrative + forensics table + wheel filename (DOC-05 satisfied).
+- [Phase 04-publish-consumer-ux]: 2026-04-19 Release body content gap: CUDA-runtime-bundling disclosure added via two-path remediation — live release patched via gh release edit (d52a043) AND workflow template patched so future dispatches render the disclosure natively (d52a043) + forensics re-captured (1d1876b). Prevents consumers from assuming they need a local CUDA Toolkit install.
 
 ### Pending Todos
 
@@ -121,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-18T23:13:47.880Z
-Stopped at: Completed 04-01-PLAN.md (publish job + lint-gate + README + REQUIREMENTS/PROJECT amendments)
+Last session: 2026-04-19T10:19:19.008Z
+Stopped at: Completed 04-02-PLAN.md (green end-to-end dispatch + live release v0.3.20-cu126-win); Phase 4 ready for /gsd:verify-work
 Resume file: None

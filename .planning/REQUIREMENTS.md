@@ -68,7 +68,7 @@
 *DOC-03 moved to "Out of Scope" on 2026-04-19 — no Fastly delay without gh-pages.*
 
 - [x] **DOC-04**: The workflow YAML contains inline comments explaining the MSVC 14.40 pin rationale (and the 14.39 → 14.40 bump history) and the `-allow-unsupported-compiler` ban (link to upstream #1543)
-- [ ] **DOC-05**: Release notes (GitHub Release body) record the llama.cpp submodule SHA at build time
+- [x] **DOC-05**: Release notes (GitHub Release body) record the llama.cpp submodule SHA at build time
 
 ## v2 Requirements
 
@@ -172,7 +172,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DOC-02 | Phase 4 | Complete |
 | DOC-03 | Deferred to v2 | Out of Scope |
 | DOC-04 | Phase 1 | Complete |
-| DOC-05 | Phase 4 | Pending |
+| DOC-05 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 51 total defined

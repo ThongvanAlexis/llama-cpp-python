@@ -13,7 +13,7 @@ This v1 delivers a GitHub Actions workflow that produces a runtime-verified Wind
 - [x] **Phase 1: Scaffold & Toolchain Pinning** - New Windows-only workflow file with MSVC auto-select from CUDA compat matrix and CUDA toolkit unified behind one install path (completed 2026-04-16)
 - [x] **Phase 2: Build & Cache** - scikit-build-core produces a correctly-tagged, size-bounded wheel with three-tier save-on-failure caches (completed 2026-04-17)
 - [ ] **Phase 3: Smoke Test (Publish Gate)** - Fresh-runner job installs the wheel and asserts `Llama(...)` runs without segfault; publish blocked if red
-- [ ] **Phase 4: Publish & Consumer UX** - PEP 503 index on gh-pages, release assets, post-publish probe, and README install docs
+- [x] **Phase 4: Publish & Consumer UX** - Fork-focused README + publish job producing a live GitHub Release (softprops/action-gh-release@v2) with byte-identical wheel upload + forensics body embedding 12-char llama.cpp SHA (completed 2026-04-19; scope reduced from gh-pages PEP 503 index)
 
 ## Phase Details
 
@@ -84,8 +84,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Add build job outputs block, publish job + lint-workflow gate-assert, fork-focused README + preserved upstream README, REQUIREMENTS.md + PROJECT.md amendments (PUB-01, PUB-02, PUB-03..10, DOC-01, DOC-02, DOC-03, DOC-05)
-- [ ] 04-02-PLAN.md — End-to-end dispatch verification: green workflow_dispatch produces a real Release at v<ver>-cu126-win with matching asset SHA-256 + forensics body [human-verify checkpoint] (PUB-01, PUB-02, DOC-05)
+- [x] 04-01-PLAN.md — Add build job outputs block, publish job + lint-workflow gate-assert, fork-focused README + preserved upstream README, REQUIREMENTS.md + PROJECT.md amendments (PUB-01, PUB-02, PUB-03..10, DOC-01, DOC-02, DOC-03, DOC-05) — completed 2026-04-18, commits 8441180, b94935c, 4bb91d9
+- [x] 04-02-PLAN.md — End-to-end dispatch verification: green workflow_dispatch produces a real Release at v<ver>-cu126-win with matching asset SHA-256 + forensics body [human-verify checkpoint] (PUB-01, PUB-02, DOC-05) — completed 2026-04-19, run 24623672816, target commit 973aeff
 
 ## Progress
 
@@ -97,7 +97,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Scaffold & Toolchain Pinning | 3/3 | Complete | 2026-04-16 |
 | 2. Build & Cache | 2/2 | Complete | 2026-04-17 |
 | 3. Smoke Test (Publish Gate) | 1/1 | Complete | 2026-04-18 |
-| 4. Publish & Consumer UX | 1/2 | In Progress | - |
+| 4. Publish & Consumer UX | 2/2 | Complete | 2026-04-19 |
 
 ## Coverage
 
