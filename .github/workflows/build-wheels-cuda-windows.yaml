@@ -1779,7 +1779,11 @@ jobs:
             cat <<BODY
           Windows CUDA ${{ inputs.cuda_version }} wheel, built ${{ steps.meta.outputs.build_date }} against llama.cpp @ \`${{ steps.meta.outputs.llama_sha_12 }}\`.
 
+          **CUDA Toolkit isn't required** — the CUDA 12.6 runtime is bundled inside the wheel. A local CUDA Toolkit installation won't interfere; you only need a current NVIDIA driver.
+
           ## Install
+
+          > ℹ️ **CUDA Toolkit isn't required.** The wheel ships with the CUDA 12.6 runtime DLLs it needs (\`cudart\`, \`cublas\`, \`cublasLt\`, etc.) vendored in. A local CUDA Toolkit installation won't interfere — you only need an NVIDIA driver supporting CUDA 12.6 (any recent GeForce/Quadro driver; check \`nvidia-smi\` shows \`CUDA Version: 12.6\` or higher).
 
           1. Verify your NVIDIA driver is >= 561.17 (\`nvidia-smi\`).
           2. Download \`${{ steps.meta.outputs.wheel_name }}\` below.
