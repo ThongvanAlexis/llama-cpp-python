@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: verifying
 stopped_at: "Completed 04-02-PLAN.md (green end-to-end dispatch + live release v0.3.20-cu126-win); Phase 4 ready for /gsd:verify-work"
-last_updated: "2026-04-19T10:19:19.012Z"
-last_activity: 2026-04-19 — Phase 4 Plan 02 COMPLETE. Green end-to-end workflow_dispatch (run 24623672816) on target commit 973aeff: build + smoke-test + publish + lint-workflow all success. Release v0.3.20-cu126-win live with byte-identical wheel (SHA-256 47649ad0...adbeed8), 12-char llama.cpp SHA 227ed28e128e in body narrative + forensics table + wheel filename (DOC-05 satisfied). In-flight deviations: SC2012 fix (973aeff) + CUDA-bundling disclosure two-path patch (d52a043 + 1d1876b). Dispatched from windows-build branch; both main and windows-build now in sync at 1d1876b on origin. Phase 4 ready for /gsd:verify-work to close v1 milestone.
+last_updated: "2026-04-19T10:26:07.873Z"
+last_activity: "2026-04-19 — Phase 4 Plan 02 COMPLETE. Release v0.3.20-cu126-win live with wheel SHA-256 47649ad0...adbeed8 and 12-char llama.cpp SHA 227ed28e128e in body narrative + forensics table + wheel filename. Dispatched from windows-build branch; both main and windows-build now at origin HEAD 1d1876b. Commits: e110c8d, e58d938, 973aeff (SC2012 fix = release target commit), 9bb1da6 (Task 1 forensics), d52a043 (CUDA-disclosure two-path patch), 1d1876b (forensics refresh)."
 progress:
   total_phases: 4
   completed_phases: 4
