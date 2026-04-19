@@ -1,34 +1,32 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: verifying
-stopped_at: "Completed 04-02-PLAN.md (green end-to-end dispatch + live release v0.3.20-cu126-win); Phase 4 ready for /gsd:verify-work"
-last_updated: "2026-04-19T10:26:07.873Z"
-last_activity: "2026-04-19 — Phase 4 Plan 02 COMPLETE. Release v0.3.20-cu126-win live with wheel SHA-256 47649ad0...adbeed8 and 12-char llama.cpp SHA 227ed28e128e in body narrative + forensics table + wheel filename. Dispatched from windows-build branch; both main and windows-build now at origin HEAD 1d1876b. Commits: e110c8d, e58d938, 973aeff (SC2012 fix = release target commit), 9bb1da6 (Task 1 forensics), d52a043 (CUDA-disclosure two-path patch), 1d1876b (forensics refresh)."
+milestone: shipped-v1.0
+milestone_name: "(planning next milestone)"
+status: between_milestones
+stopped_at: "v1.0 Windows CUDA Wheels CI shipped 2026-04-19. Planning next milestone."
+last_updated: "2026-04-19T17:10:00.000Z"
+last_activity: "2026-04-19 — v1.0 milestone archived. Live Release v0.3.20-cu126-win with runtime-verified wheel. 4 phases / 8 plans / ~5 days. Archives: .planning/milestones/v1.0-{ROADMAP,REQUIREMENTS,MILESTONE-AUDIT}.md. Known gaps accepted as tech debt: Phase 3 VERIFICATION.md missing (evidence in dispatch runs), README.md:76 cosmetic stale, Nyquist partial on Phase 2/3."
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-15)
+See: .planning/PROJECT.md (updated 2026-04-19 after v1.0 milestone close)
 
-**Core value:** Produce a Windows x64 CUDA wheel that actually works at runtime (loads a model, runs inference without segfault) and is consumer-installable via manual download from GitHub Releases (`pip install path/to/llama_cpp_python-<ver>+cu126.ll<sha>-cp311-cp311-win_amd64.whl`).
-**Current focus:** Phase 4 COMPLETE. All 8 plans green, v1 success criteria met on a live dispatch. Ready for /gsd:verify-work 04 to close the v1 milestone formally.
+**Core value:** Produce a Windows x64 CUDA wheel that actually works at runtime and is consumer-installable via manual download from GitHub Releases.
+**Current focus:** Between milestones. v1.0 shipped; next milestone (v2 scope) not yet defined. Run `/gsd:new-milestone` to begin requirements/roadmap for v2.
 
 ## Current Position
 
-Phase: 4 of 4 (Publish & Consumer UX) -- COMPLETE
-Plan: 2 of 2 in current phase (both complete)
-Status: Plan 04-02 complete. Green end-to-end workflow_dispatch (run 24623672816) proved the publish pipeline works live: build + smoke-test + publish + lint-workflow all green, live Release at v0.3.20-cu126-win with byte-identical wheel upload + DOC-05-compliant forensics body. Ready for /gsd:verify-work 04 to close the v1 milestone.
-Last activity: 2026-04-19 — Phase 4 Plan 02 COMPLETE. Release v0.3.20-cu126-win live with wheel SHA-256 47649ad0...adbeed8 and 12-char llama.cpp SHA 227ed28e128e in body narrative + forensics table + wheel filename. Dispatched from windows-build branch; both main and windows-build now at origin HEAD 1d1876b. Commits: e110c8d, e58d938, 973aeff (SC2012 fix = release target commit), 9bb1da6 (Task 1 forensics), d52a043 (CUDA-disclosure two-path patch), 1d1876b (forensics refresh).
+No active phase. v1.0 Windows CUDA Wheels CI complete (2026-04-19). All 8 plans across 4 phases delivered; live Release v0.3.20-cu126-win shipped. See `.planning/MILESTONES.md` for v1.0 summary and `.planning/milestones/v1.0-MILESTONE-AUDIT.md` for the close-out audit.
+Last activity: 2026-04-19 — v1.0 milestone archived via `/gsd:complete-milestone`.
 
 Progress: [██████████] 100% (8 plans complete of 8 total: Phase 1: 3/3, Phase 2: 2/2, Phase 3: 1/1, Phase 4: 2/2)
 
