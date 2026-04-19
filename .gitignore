@@ -179,3 +179,9 @@ cython_debug/
 
 # downloaded model .bin files
 docker/open_llama/*.bin
+
+# Local actionlint binary (downloaded on demand)
+actionlint.exe
+
+# Local Claude Code agent config
+.claude/
