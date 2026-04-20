@@ -1695,7 +1695,7 @@ jobs:
   # Runs on a green smoke-test only. Downloads the `cuda-wheel` artifact from
   # the build job (byte-identical to what Phase 2 produced — no repackaging),
   # computes release metadata, assembles the forensics body, and uploads the
-  # wheel as an asset on a GitHub Release at tag `v<base_version>-cu<maj><min>-win`.
+  # wheel as an asset on a GitHub Release at tag `v<base_version>-cu<maj><min>-cp<pymaj><pymin>-win`.
   # The gate is STRUCTURAL: `needs: [build, smoke-test]` + a lint-workflow
   # grep-assert above. Removing the gate is a grep-detectable regression.
   # See upstream #1543 for why smoke-test is a hard publish gate.
@@ -1748,10 +1748,14 @@ jobs:
           fi
           # Derive cu-tag from inputs.cuda_version (NOT hardcoded — see RESEARCH.md Pitfall 8).
           CU_TAG=$(echo '${{ inputs.cuda_version }}' | awk -F. '{printf "cu%s%s", $1, $2}')
-          TAG="v${BASE_VER}-${CU_TAG}-win"
+          # Derive cp-tag from inputs.python_version (e.g. '3.11' -> 'cp311') — each wheel is
+          # Python-version-specific, and we publish one Python version per release, so the tag
+          # must encode it to avoid collisions across dispatches for different Python versions.
+          PY_TAG=$(echo '${{ inputs.python_version }}' | awk -F. '{printf "cp%s%s", $1, $2}')
+          TAG="v${BASE_VER}-${CU_TAG}-${PY_TAG}-win"
           # Sanity assert: tag must match the canonical shape (belt-and-suspenders vs Phase 2 filename drift).
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cu[0-9]+-win$ ]]; then
-            echo "::error::Parsed tag '$TAG' does not match ^v\\d+\\.\\d+\\.\\d+-cu\\d+-win\$ — wheel filename scheme may have drifted from Phase 2 contract"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cu[0-9]+-cp[0-9]+-win$ ]]; then
+            echo "::error::Parsed tag '$TAG' does not match ^v\\d+\\.\\d+\\.\\d+-cu\\d+-cp\\d+-win\$ — wheel filename scheme may have drifted from Phase 2 contract"
             exit 1
           fi
           {
@@ -1777,7 +1781,7 @@ jobs:
           {
             echo "content<<${DELIM}"
             cat <<BODY
-          Windows CUDA ${{ inputs.cuda_version }} wheel, built ${{ steps.meta.outputs.build_date }} against llama.cpp @ \`${{ steps.meta.outputs.llama_sha_12 }}\`.
+          Python ${{ inputs.python_version }}, Windows CUDA ${{ inputs.cuda_version }} wheel, built ${{ steps.meta.outputs.build_date }} against llama.cpp @ \`${{ steps.meta.outputs.llama_sha_12 }}\`.
 
           **CUDA Toolkit isn't required** — the CUDA 12.6 runtime is bundled inside the wheel. A local CUDA Toolkit installation won't interfere; you only need a current NVIDIA driver.
 
@@ -1813,7 +1817,7 @@ jobs:
         timeout-minutes: 5
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: ${{ steps.meta.outputs.tag }}
+          name: Python ${{ inputs.python_version }} ${{ steps.meta.outputs.tag }}
           body: ${{ steps.body.outputs.content }}
           files: dist/*.whl
           target_commitish: ${{ github.sha }}
